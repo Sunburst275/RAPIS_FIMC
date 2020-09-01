@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Remoting.Messaging;
 using System.Text;
-using System.Collections.Generic;
 
 namespace RAPIS_FIMC
 {

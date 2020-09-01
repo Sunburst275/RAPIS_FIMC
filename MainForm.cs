@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
 using System.Diagnostics;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace RAPIS_FIMC
@@ -32,6 +31,8 @@ namespace RAPIS_FIMC
         // + SaveFileDialog()
         // - Load in seperate thread
         // - Save in seperate thread
+        // - About
+        // - Capture mouse release for better performance on calculating "IsValidSelection()"
         #endregion
         #region Constants
         // Messages
@@ -48,6 +49,7 @@ namespace RAPIS_FIMC
         int from = 0;
         int to = 0;
         List<LineBounds> lB;
+        LineBounds currentLine;
         #endregion
         #region Constructors
         public MainForm()
@@ -62,6 +64,7 @@ namespace RAPIS_FIMC
             FromNumericUpDown.Minimum = 0;
             ToNumericUpDown.Maximum = int.MaxValue;
             ToNumericUpDown.Minimum = 0;
+            currentLine = new LineBounds();
 
             file = new FileInfo();
 
@@ -200,7 +203,7 @@ namespace RAPIS_FIMC
             // Check which kind of file it is
             string fileName = FileInfo.ExtractFileName(pathAndName);
             FileInfo.FileType fileType = FileInfo.ExtractFileType(fileName);
-            
+
             if (fileType == FileInfo.FileType.other)
             {
                 MessageBox.Show(UnsupportedFileTypeMsg, SelectValidFileMsg, MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -221,6 +224,13 @@ namespace RAPIS_FIMC
                 return;
             }
 
+            var fromAndTo = CalculateSelectedSection();
+            int realFrom = fromAndTo.Item1;
+            int realTo = fromAndTo.Item2;
+            // DBG: remove line 232 and 233 after being done!
+            RemoveColumSpanInContent(file.GetContent(), realFrom, realTo);
+            return;
+
             using (SaveFileDialog svd = new SaveFileDialog())
             {
                 var pathAndName = file.GetPathAndName();
@@ -236,8 +246,8 @@ namespace RAPIS_FIMC
                 DialogResult dr = svd.ShowDialog();
                 if (dr == DialogResult.OK)
                 {
-                    // Start new thread and show MessageBox "done" when done
-                    WriteFile(RemoveColumSpanInContent(file.GetContent(), from, to), svd.FileName);
+                    // TODO: Start new thread and show MessageBox "done" when done
+                    WriteFile(RemoveColumSpanInContent(file.GetContent(), realFrom, realTo), svd.FileName);
                     return;
                 }
             }
@@ -285,7 +295,7 @@ namespace RAPIS_FIMC
             var errorOccured = false;
             if (string.IsNullOrEmpty(filePath) || content == null || content.Count <= 0)
             {
-                // TODO: Fehlermeldung
+                // TODO: Error messages
                 return;
             }
             using (StreamWriter sW = new StreamWriter(new FileStream(filePath, FileMode.OpenOrCreate), Encoding.UTF8))
@@ -301,7 +311,7 @@ namespace RAPIS_FIMC
                 }
                 catch (Exception)
                 {
-                    // TODO: Errors abfangen, "failed" anzeigen, etc.
+                    // TODO: Catch errors, show "failed", etc.
                     throw;
                 }
             }
@@ -360,7 +370,7 @@ namespace RAPIS_FIMC
             lB = new List<LineBounds>();
 
             int start = 0;
-            int end = 0;
+            int end;
             int index = 0;
             for (int i = 0; i < splittedContent.Length; i++)
             {
@@ -377,9 +387,6 @@ namespace RAPIS_FIMC
         }
         private bool IsSelectionValid(int from, int to)
         {
-            // TODO: Selection is 1-Indexed, my stuff is 0-Indexed
-
-            var content = FileContentBox.Text;
             LineBounds preceedingLineBounds = new LineBounds();
             LineBounds trailingLineBounds = new LineBounds();
 
@@ -414,33 +421,82 @@ namespace RAPIS_FIMC
                 }
             }
 
-            Debug.WriteLine("preceedingLineBounds.Equals(trailingLineBounds) = " + preceedingLineBounds.Equals(trailingLineBounds));
-            return preceedingLineBounds.Equals(trailingLineBounds);
+            var res = preceedingLineBounds.Equals(trailingLineBounds);
+            if (res)
+                currentLine = preceedingLineBounds;
+            return res;
         }
-
-        private void CalculateSelectedSection()
+        /// <summary>Use this to calculate the actual "from" and "to" values independent from the line and length of the text from the RichTextBox</summary>
+        /// <remarks>Dont use this to change the SpinnerBoxes' values, unless you want to make the code 1000x more complex.</remarks>
+        /// <returns>(realFrom, realTo)</returns>
+        private Tuple<int, int> CalculateSelectedSection()
         {
-            // TODO: Calculate the selected "from where to where" and mark it spanning all rows 
+            int realFrom, realTo;
+            int currentLineIndex = 0;
+
+            // Get current line index
+            for (int i = 0; i < lB.Count; i++)
+            {
+                if (lB[i].Equals(currentLine))
+                {
+                    currentLineIndex = i;
+                    break;
+                }
+            }
+            if (currentLineIndex == 0)
+            {
+                return Tuple.Create(from, to);
+            }
+
+            // Calculate realFrom and realTo
+            int overallLength = from;
+            for (int i = 0; i < currentLineIndex; i++)
+            {
+                overallLength -= (lB[i].content.Length + 1);
+            }
+            realFrom = overallLength;
+            realTo = (to - from) + realFrom;
+            return Tuple.Create(realFrom, realTo);
         }
         private List<string> RemoveColumSpanInContent(List<string> content, int from, int to)
         {
-            // TODO: Calculate where to remove which column/s in which line
-            List<string> contentToEdit = file.GetContent();
+            List<string> contentToEdit = content;
             List<string> editedContent = contentToEdit;
 
-            Console.WriteLine("Original:\n");
+            // TODO: Still doesnt work as intended. Maybe indexing is wrong, or conditions are not right.
+            // FYI: Update: Seems to be working now (changed "-1" in row 491). -> Still needs further checking. Try to check with a file with numberes columns
+            // DBG: Only to show what was in there before
+            Console.WriteLine("=================================================");
+            Console.Write("Original:\n");
             for (int item = 0; item < contentToEdit.Count; item++)
             {
                 Console.WriteLine(contentToEdit[item]);
             }
 
-            Console.WriteLine();
-            Console.WriteLine("Edited:\n");
+            // DBG: Same thing
+            Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
+            Console.Write("Edited:\n");
 
-            for (int item = 0; item < contentToEdit.Count; item++)
+            // DBG: Real editing
+            for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
             {
-                editedContent[item] = contentToEdit[item].Remove(from, to - from);
-                Console.WriteLine(editedContent[item]);
+                var varLength = contentToEdit[itemIndex].Length;// - 1;
+                if (varLength < from)
+                {
+                    // Line is too short for the removing of these columns. -> Do noting
+                }
+                else if (varLength >= from && varLength < to)
+                {
+                    // Line is too short for the removing from "from" to "to", only "from" is in bounds. 
+                    // -> Delete from "from" to end of the line (varLength)
+                    contentToEdit[itemIndex].Remove(from, varLength - from);
+                }
+                else
+                {
+                    // Line is long enough to have char's removed in between "from" and "to".
+                    editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, to - from);
+                }
+                Console.WriteLine(editedContent[itemIndex]);
             }
 
             return editedContent;

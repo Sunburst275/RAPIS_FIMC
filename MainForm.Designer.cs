@@ -171,7 +171,7 @@
             this.MaximumSize = new System.Drawing.Size(735, 375);
             this.MinimumSize = new System.Drawing.Size(735, 375);
             this.Name = "MainForm";
-            this.Text = "Multiliner";
+            this.Text = "RAPIS FIMC";
             this.Load += new System.EventHandler(this.MainForm_Load);
             ((System.ComponentModel.ISupportInitialize)(this.FromNumericUpDown)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.ToNumericUpDown)).EndInit();
