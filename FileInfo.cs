@@ -1,16 +1,30 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
+using System.Collections.Generic;
 
-namespace Multiliner
+namespace RAPIS_FIMC
 {
     class FileInfo
     {
         #region Enums
-        // File extensions
-        const string tsv = "tsv";
-        const string txt = "txt";
-        public enum FileType { tsv, txt, other, none };
+        // File extension strings
+        public enum FileType { tsv, txt, csv, /*xlsx, docx,*/ htm, html, log, other, none };
+        public static readonly Dictionary<FileType, string> supportedFileTypes = new Dictionary<FileType, string>
+        {
+            {FileType.txt, "txt" },
+            {FileType.tsv, "tsv" },
+            {FileType.csv, "csv" },
+            //{FileType.xlsx, "xlsx" },
+            //{FileType.docx, "docx" },
+            {FileType.htm, "htm" },
+            {FileType.html, "html" },
+            {FileType.log, "log" }
+        };
+
         #endregion
         #region Members
         private string pathAndName;
@@ -46,6 +60,18 @@ namespace Multiliner
         {
             return extension;
         }
+        public string GetFileTypeString()
+        {
+            foreach(KeyValuePair<FileType, string> ft in supportedFileTypes)
+            {
+                if(ft.Key == extension)
+                {
+                    return ft.Value;
+                }
+            }
+
+            return null;
+        }
         public string GetContentAt(int index)
         {
             return content.ElementAt(index);
@@ -58,23 +84,35 @@ namespace Multiliner
         {
             return content.Count;
         }
+        public bool IsValid()
+        {
+            return
+                (
+                    (content != null) &&
+                    (extension != FileType.none) &&
+                    (extension != FileType.other) &&
+                    (content.Count > 0) &&
+                    !string.IsNullOrEmpty(pathAndName) &&
+                    !string.IsNullOrEmpty(path) &&
+                    !string.IsNullOrEmpty(name)
+                );
+        }
         #endregion
         #region Setter
         public void SetPathAndName(string pathAndName)
         {
-           this.pathAndName = pathAndName;
-        }
-        public void SetName(string name)
-        {
-            this.name = name;
-        }
-        public void SetPath(string path)
-        {
-            this.path = path;
-        }
-        public void SetType(FileType extension)
-        {
-            this.extension = extension;
+            if (string.IsNullOrEmpty(pathAndName))
+            {
+                this.pathAndName = path = name = pathAndName;
+                extension = FileType.none;
+            }
+            else
+            {
+                this.pathAndName = pathAndName;
+                this.path = ExtractFilePath(pathAndName);
+                this.name = ExtractFileName(pathAndName);
+                this.extension = ExtractFileType(this.name);
+            }
         }
         public void SetContentAt(string content, int index)
         {
@@ -105,15 +143,12 @@ namespace Multiliner
             string[] fileNameAndExtensionSplitted = fileNameWithExtension.Split('.');
             string fileExtension = fileNameAndExtensionSplitted[fileNameAndExtensionSplitted.Length - 1];
 
-            if (fileExtension == tsv)
+            foreach(KeyValuePair<FileType, string> ft in supportedFileTypes)
             {
-                return FileType.tsv;
+                if (ft.Value == fileExtension)
+                    return ft.Key;
             }
-            else if (fileExtension == txt)
-            {
-                return FileType.txt;
-            }
-
+            
             return FileType.other;
         }
         public static string ExtractFileName(string filePathAndName)

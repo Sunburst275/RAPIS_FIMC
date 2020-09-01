@@ -3,7 +3,12 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29920.165
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Multiliner", "Multiliner.csproj", "{F464DD02-D4BE-4C01-AA91-AAC2E4681144}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RAPIS_FIMC", "RAPIS_FIMC.csproj", "{F464DD02-D4BE-4C01-AA91-AAC2E4681144}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{962C77BA-61DD-4BA2-AA47-1701D0A54D8E}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

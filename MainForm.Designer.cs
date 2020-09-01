@@ -1,4 +1,4 @@
-﻿namespace Multiliner
+﻿namespace RAPIS_FIMC
 {
     partial class MainForm
     {

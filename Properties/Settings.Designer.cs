@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Multiliner.Properties
+namespace RAPIS_FIMC.Properties
 {
 
 
