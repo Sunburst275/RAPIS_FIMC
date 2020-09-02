@@ -12,6 +12,8 @@ using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.CodeDom;
 
 namespace RAPIS_FIMC
 {
@@ -26,13 +28,13 @@ namespace RAPIS_FIMC
         //          - Calculate columns
         // - Check max/min length of lines
         // + Row/Column labels in Designer
-        // - Writing file in extra thread
-        //      - Please wait dialog
+        // + Writing file in extra thread
+        //      + Please wait dialog
         // + SaveFileDialog()
         // - Load in seperate thread
-        // - Save in seperate thread
+        // + Save in seperate thread
         // - About
-        // - Capture mouse release for better performance on calculating "IsValidSelection()"
+        // ? Capture mouse release for better performance on calculating "IsValidSelection()"
         #endregion
         #region Constants
         // Messages
@@ -44,12 +46,17 @@ namespace RAPIS_FIMC
         // Other
         const int MaxCurrentlyOpenedLabelLength = 70;
         #endregion
+        #region Events / Delegates
+        public delegate void OnProcessingDialog_Cancel_Delegate();
+        #endregion
         #region Variables
         FileInfo file;
         int from = 0;
         int to = 0;
         List<LineBounds> lB;
         LineBounds currentLine;
+        ProcessingDialog pd;
+        Thread writingThread;
         #endregion
         #region Constructors
         public MainForm()
@@ -65,6 +72,7 @@ namespace RAPIS_FIMC
             ToNumericUpDown.Maximum = int.MaxValue;
             ToNumericUpDown.Minimum = 0;
             currentLine = new LineBounds();
+            pd = new ProcessingDialog();
 
             file = new FileInfo();
 
@@ -227,17 +235,23 @@ namespace RAPIS_FIMC
             var fromAndTo = CalculateSelectedSection();
             int realFrom = fromAndTo.Item1;
             int realTo = fromAndTo.Item2;
-            // DBG: remove line 232 and 233 after being done!
+             
+            //DBG: Just to not have to save to a file all the time. This way its easier to get the algorithm working.
             RemoveColumSpanInContent(file.GetContent(), realFrom, realTo);
             return;
+
 
             using (SaveFileDialog svd = new SaveFileDialog())
             {
                 var pathAndName = file.GetPathAndName();
                 if (pathAndName == string.Empty)
+                {
                     svd.InitialDirectory = System.Environment.GetFolderPath(Environment.SpecialFolder.MyComputer);
+                }
                 else
+                {
                     svd.InitialDirectory = FileInfo.ExtractFilePath(pathAndName);
+                }
                 svd.Filter = "Input file type " + "(*." + file.GetFileTypeString() + ")|*." + file.GetFileTypeString();
                 svd.FilterIndex = 1;
                 svd.RestoreDirectory = true;
@@ -246,8 +260,25 @@ namespace RAPIS_FIMC
                 DialogResult dr = svd.ShowDialog();
                 if (dr == DialogResult.OK)
                 {
-                    // TODO: Start new thread and show MessageBox "done" when done
-                    WriteFile(RemoveColumSpanInContent(file.GetContent(), realFrom, realTo), svd.FileName);
+                    // Start new thread and show MessageBox "done" when done
+                    StartLockingGUI();
+                    try
+                    {
+                        writingThread = new Thread(() =>
+                        {
+                            WriteFile(RemoveColumSpanInContent(file.GetContent(), realFrom, realTo), svd.FileName);
+                        });
+                        writingThread.Start();
+                    }
+                    catch (Exception)
+                    {
+                        StopLockingGUI();
+                        ShowProcessingResult(ProcessingDialogResult.Failed);
+                        return;
+                    }
+                    
+                    StopLockingGUI();
+                    ShowProcessingResult(ProcessingDialogResult.Success);
                     return;
                 }
             }
@@ -263,6 +294,31 @@ namespace RAPIS_FIMC
         private void FromNumericUpDown_ValueChanged(object sender, EventArgs e)
         {
             NumericUpDownBoxChanged();
+        }
+        private void OnProcessingDialog_Cancel(object sender, EventArgs e)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke((MethodInvoker)delegate { OnProcessingDialog_Cancel(this, EventArgs.Empty); });
+            }
+            else
+            {
+                // Abort thread which is used to write file
+                try
+                {
+                    if (writingThread != null)
+                    {
+                        writingThread.Abort();
+                        writingThread = null;
+                    }
+                }
+                catch (ThreadAbortException)
+                {
+                    // Ignore
+                }
+                StopLockingGUI();
+                ShowProcessingResult(ProcessingDialogResult.Cancelled);
+            }
         }
         #endregion
         #region Read/Write file
@@ -315,8 +371,6 @@ namespace RAPIS_FIMC
                     throw;
                 }
             }
-
-            MessageBox.Show("Done.");
         }
         #endregion
         #region Helper
@@ -465,6 +519,8 @@ namespace RAPIS_FIMC
 
             // TODO: Still doesnt work as intended. Maybe indexing is wrong, or conditions are not right.
             // FYI: Update: Seems to be working now (changed "-1" in row 491). -> Still needs further checking. Try to check with a file with numberes columns
+            // FYI: Update: Doesnt seem to work... somethings weird. Try to get this working!
+            
             // DBG: Only to show what was in there before
             Console.WriteLine("=================================================");
             Console.Write("Original:\n");
@@ -477,7 +533,7 @@ namespace RAPIS_FIMC
             Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
             Console.Write("Edited:\n");
 
-            // DBG: Real editing
+            // Removing columns in lines according to specified "from" and "to"
             for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
             {
                 var varLength = contentToEdit[itemIndex].Length;// - 1;
@@ -485,7 +541,7 @@ namespace RAPIS_FIMC
                 {
                     // Line is too short for the removing of these columns. -> Do noting
                 }
-                else if (varLength >= from && varLength < to)
+                else if (varLength >= from && varLength <= to)
                 {
                     // Line is too short for the removing from "from" to "to", only "from" is in bounds. 
                     // -> Delete from "from" to end of the line (varLength)
@@ -496,6 +552,8 @@ namespace RAPIS_FIMC
                     // Line is long enough to have char's removed in between "from" and "to".
                     editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, to - from);
                 }
+                
+                // DBG: Only to show the result of the operation
                 Console.WriteLine(editedContent[itemIndex]);
             }
 
@@ -515,6 +573,59 @@ namespace RAPIS_FIMC
                 sb.AppendLine(readLines[i]);
 
             FileContentBox.Text = sb.ToString();
+        }
+        private void StartLockingGUI()
+        {
+            // Disable controls
+            foreach (Control cntrl in this.Controls)
+            {
+                cntrl.Enabled = false;
+            }
+            // Show ProcessDialog
+            pd = new ProcessingDialog();
+            pd.ProcessCancellingRequested += OnProcessingDialog_Cancel;
+            pd.ShowDialog();
+        }
+        private void StopLockingGUI()
+        {
+            // Close ProcessingDialog if necessary.
+            if (pd != null)
+            {
+                pd.ProcessCancellingRequested -= OnProcessingDialog_Cancel;
+                pd.Close();
+                pd = null;
+            }
+
+            // Reenable controls
+            foreach (Control cntrl in this.Controls)
+            {
+                cntrl.Enabled = true;
+            }
+        }
+        private void ShowProcessingResult(ProcessingDialogResult processingDialogResult)
+        {
+            // Show msgbox when "done"
+            switch (processingDialogResult)
+            {
+                case (ProcessingDialogResult.Success):
+                    MessageBox.Show("Removal of specified columns is done.\nYou may close the program now\nor continue.",
+                                    "RAPIS FIMC - Processing done",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Information);
+                    break;
+                case (ProcessingDialogResult.Cancelled):
+                    MessageBox.Show("Removal of specified columns was cancelled.\nYou may close the program now\nor continue.",
+                        "RAPIS FIMC - Processing cancelled",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Exclamation);
+                    break;
+                case (ProcessingDialogResult.Failed):
+                    MessageBox.Show("Removal of specified columns failed.\nYou may close the program now\nor continue.",
+                        "RAPIS FIMC - Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    break;
+            }
         }
         #endregion
         #region Helping structures
@@ -548,6 +659,8 @@ namespace RAPIS_FIMC
             }
 
         }
+        public enum ProcessingDialogResult { Success, Cancelled, Failed };
+
         #endregion
     }
 }
