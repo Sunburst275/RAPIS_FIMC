@@ -39,6 +39,7 @@
             this.ToNumericUpDown = new System.Windows.Forms.NumericUpDown();
             this.CloseButton = new System.Windows.Forms.Button();
             this.CurrentlyOpenedLabel = new System.Windows.Forms.Label();
+            this.AboutButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.FromNumericUpDown)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.ToNumericUpDown)).BeginInit();
             this.SuspendLayout();
@@ -132,9 +133,9 @@
             // 
             // CloseButton
             // 
-            this.CloseButton.Location = new System.Drawing.Point(446, 287);
+            this.CloseButton.Location = new System.Drawing.Point(513, 287);
             this.CloseButton.Name = "CloseButton";
-            this.CloseButton.Size = new System.Drawing.Size(127, 37);
+            this.CloseButton.Size = new System.Drawing.Size(60, 37);
             this.CloseButton.TabIndex = 9;
             this.CloseButton.Text = "Close";
             this.CloseButton.UseVisualStyleBackColor = true;
@@ -150,12 +151,25 @@
             this.CurrentlyOpenedLabel.TabIndex = 10;
             this.CurrentlyOpenedLabel.Text = "Currently opened:";
             // 
+            // AboutButton
+            // 
+            this.AboutButton.Location = new System.Drawing.Point(447, 287);
+            this.AboutButton.MaximumSize = new System.Drawing.Size(60, 37);
+            this.AboutButton.MinimumSize = new System.Drawing.Size(60, 37);
+            this.AboutButton.Name = "AboutButton";
+            this.AboutButton.Size = new System.Drawing.Size(60, 37);
+            this.AboutButton.TabIndex = 11;
+            this.AboutButton.Text = "Help";
+            this.AboutButton.UseVisualStyleBackColor = true;
+            this.AboutButton.Click += new System.EventHandler(this.AboutButton_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(719, 336);
             this.ControlBox = false;
+            this.Controls.Add(this.AboutButton);
             this.Controls.Add(this.CurrentlyOpenedLabel);
             this.Controls.Add(this.CloseButton);
             this.Controls.Add(this.ToNumericUpDown);
@@ -193,6 +207,7 @@
         private System.Windows.Forms.NumericUpDown ToNumericUpDown;
         private System.Windows.Forms.Button CloseButton;
         private System.Windows.Forms.Label CurrentlyOpenedLabel;
+        private System.Windows.Forms.Button AboutButton;
     }
 }
 

@@ -32,8 +32,9 @@ namespace RAPIS_FIMC
         //      + Please wait dialog
         // + SaveFileDialog()
         // - Load in seperate thread
+        //      - Dialog
         // + Save in seperate thread
-        // - About
+        // + About/Help
         // ? Capture mouse release for better performance on calculating "IsValidSelection()"
         #endregion
         #region Constants
@@ -44,7 +45,7 @@ namespace RAPIS_FIMC
         const string UnsupportedFileTypeMsg = "Unsupported file type!";
 
         // Other
-        const int MaxCurrentlyOpenedLabelLength = 70;
+        const int MaxCurrentlyOpenedLabelLength = 72;
         #endregion
         #region Events / Delegates
         public delegate void OnProcessingDialog_Cancel_Delegate();
@@ -187,7 +188,14 @@ namespace RAPIS_FIMC
                 }
                 else
                 {
-                    file.SetPathAndName(string.Empty);
+                    if (pathAndName == string.Empty)
+                    {
+                        file.SetPathAndName(string.Empty);
+                    }
+                    else
+                    {
+                        file.SetPathAndName(pathAndName);
+                    }
                 }
             }
         }
@@ -286,6 +294,11 @@ namespace RAPIS_FIMC
         private void CloseButton_Click(object sender, EventArgs e)
         {
             this.Dispose();
+        }
+        private void AboutButton_Click(object sender, EventArgs e)
+        {
+            var AboutDialog = new AboutDialog();
+            AboutDialog.ShowDialog();
         }
         private void ToNumericUpDown_ValueChanged(object sender, EventArgs e)
         {
@@ -662,5 +675,6 @@ namespace RAPIS_FIMC
         public enum ProcessingDialogResult { Success, Cancelled, Failed };
 
         #endregion
+
     }
 }
