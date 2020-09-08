@@ -14,6 +14,8 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.CodeDom;
+using RAPIS_FIMC.Dialogs;
+using System.Runtime.CompilerServices;
 
 namespace RAPIS_FIMC
 {
@@ -34,7 +36,8 @@ namespace RAPIS_FIMC
         // - Load in seperate thread
         //      - Dialog
         // + Save in seperate thread
-        // + About/Help
+        // - About/Help
+        //      - Write, that only one-line-selection is possible
         // ? Capture mouse release for better performance on calculating "IsValidSelection()"
         #endregion
         #region Constants
@@ -51,19 +54,26 @@ namespace RAPIS_FIMC
         public delegate void OnProcessingDialog_Cancel_Delegate();
         #endregion
         #region Variables
-        FileInfo file;
-        int from = 0;
-        int to = 0;
-        List<LineBounds> lB;
-        LineBounds currentLine;
-        ProcessingDialog pd;
-        Thread writingThread;
+        private string mainThreadName;
+
+        private FileInfo file;
+        private int from = 0;
+        private int to = 0;
+        private List<LineBounds> lB;
+        private LineBounds currentLine;
+
+        private ProcessingDialog pd;
+        private LoadingDialog ld;
+        private bool loadingFileCancelled = false;
+
+        private Thread writingThread;
         #endregion
         #region Constructors
         public MainForm()
         {
             InitializeComponent();
             Initialization();
+            mainThreadName = Thread.CurrentThread.Name;
         }
         private void Initialization()
         {
@@ -227,10 +237,33 @@ namespace RAPIS_FIMC
                 return;
             }
 
-            SetCurrentlyOpenedLabel(fileName);
-            file.SetContent(LoadFile());
+            // Set up GUI for "loading"
+            ChangeGuiLockingState(GuiLockingState.Lock);
+            ShowLoadingDialog(file.GetName());
+
+            List<string> content;
+            try
+            {
+                content = LoadFile();
+            }
+            catch (FileReadException ex)
+            {
+                if (ex.fileReadExceptionState == FileReadException.FileReadExceptionState.Empty)
+                {
+                    MessageBox.Show("The specified file was empty...", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("An error occured during file reading:\n" + ex.InnerException.Message, "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                content = new List<string>();
+                content.Add("");
+            }
+
+            file.SetContent(content);
             DisplayFileContentsInTextBox(file.GetContent());
             PreCalcSelectionBounds();
+            SetCurrentlyOpenedLabel(fileName);
         }
         private void StartButton_Click(object sender, EventArgs e)
         {
@@ -243,11 +276,10 @@ namespace RAPIS_FIMC
             var fromAndTo = CalculateSelectedSection();
             int realFrom = fromAndTo.Item1;
             int realTo = fromAndTo.Item2;
-             
+
             //DBG: Just to not have to save to a file all the time. This way its easier to get the algorithm working.
             RemoveColumSpanInContent(file.GetContent(), realFrom, realTo);
             return;
-
 
             using (SaveFileDialog svd = new SaveFileDialog())
             {
@@ -269,7 +301,8 @@ namespace RAPIS_FIMC
                 if (dr == DialogResult.OK)
                 {
                     // Start new thread and show MessageBox "done" when done
-                    StartLockingGUI();
+                    ChangeGuiLockingState(GuiLockingState.Lock);
+                    ShowProcessingDialog();
                     try
                     {
                         writingThread = new Thread(() =>
@@ -280,12 +313,14 @@ namespace RAPIS_FIMC
                     }
                     catch (Exception)
                     {
-                        StopLockingGUI();
+                        CloseProcessingDialog();
+                        ChangeGuiLockingState(GuiLockingState.Release);
                         ShowProcessingResult(ProcessingDialogResult.Failed);
                         return;
                     }
-                    
-                    StopLockingGUI();
+
+                    CloseProcessingDialog();
+                    ChangeGuiLockingState(GuiLockingState.Release);
                     ShowProcessingResult(ProcessingDialogResult.Success);
                     return;
                 }
@@ -321,7 +356,7 @@ namespace RAPIS_FIMC
                 {
                     if (writingThread != null)
                     {
-                        writingThread.Abort();
+                        writingThread.Interrupt();
                         writingThread = null;
                     }
                 }
@@ -329,34 +364,42 @@ namespace RAPIS_FIMC
                 {
                     // Ignore
                 }
-                StopLockingGUI();
+                CloseProcessingDialog();
+                ChangeGuiLockingState(GuiLockingState.Release);
                 ShowProcessingResult(ProcessingDialogResult.Cancelled);
             }
+        }
+        private void Loading_LoadingCancellingRequested(object sender, EventArgs args)
+        {
+            // TODO:    Go on here!
+            //          Fight the problem with the cancellation of the loading process.
+            loadingFileCancelled = true;
+            //ChangeGuiLockingState(GuiLockingState.Release);
+            //CloseLoadingDialog();
         }
         #endregion
         #region Read/Write file
         private List<string> LoadFile()
         {
             List<string> stringyContent = new List<string>();
-            using (StreamReader sR = new StreamReader(new FileStream(file.GetPathAndName(), FileMode.Open)))
+            try
             {
-                try
+                using (StreamReader sR = new StreamReader(new FileStream(file.GetPathAndName(), FileMode.Open)))
                 {
-                    while (!sR.EndOfStream)
+                    while (!sR.EndOfStream && !loadingFileCancelled)
                         stringyContent.Add(sR.ReadLine());
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("An error occured during file reading:\n" + ex.Message, "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    stringyContent.Clear();
-                    return null;
-                }
+            }
+            catch (Exception ex)
+            {
+                throw new FileReadException(FileReadException.FileReadExceptionState.Other, ex);
             }
             if (stringyContent.Count <= 0)
             {
-                MessageBox.Show("The specified file was empty...", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                stringyContent.Add("");
+                throw new FileReadException(FileReadException.FileReadExceptionState.Empty);
             }
+
+            // LoadingDialog gets closed in DisplayFileContentsInTextBox(...)
             return stringyContent;
         }
         private void WriteFile(List<string> content, string filePath)
@@ -533,7 +576,7 @@ namespace RAPIS_FIMC
             // TODO: Still doesnt work as intended. Maybe indexing is wrong, or conditions are not right.
             // FYI: Update: Seems to be working now (changed "-1" in row 491). -> Still needs further checking. Try to check with a file with numberes columns
             // FYI: Update: Doesnt seem to work... somethings weird. Try to get this working!
-            
+
             // DBG: Only to show what was in there before
             Console.WriteLine("=================================================");
             Console.Write("Original:\n");
@@ -565,7 +608,7 @@ namespace RAPIS_FIMC
                     // Line is long enough to have char's removed in between "from" and "to".
                     editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, to - from);
                 }
-                
+
                 // DBG: Only to show the result of the operation
                 Console.WriteLine(editedContent[itemIndex]);
             }
@@ -581,38 +624,73 @@ namespace RAPIS_FIMC
             }
 
             StringBuilder sb = new StringBuilder(readLines.Count - 1);
-
-            for (int i = 0; i < readLines.Count; i++)
+            for (int i = 0; (i < readLines.Count && !loadingFileCancelled); i++)
                 sb.AppendLine(readLines[i]);
 
-            FileContentBox.Text = sb.ToString();
-        }
-        private void StartLockingGUI()
-        {
-            // Disable controls
-            foreach (Control cntrl in this.Controls)
+            if (loadingFileCancelled)
             {
-                cntrl.Enabled = false;
+                FileContentBox.Text = string.Empty;
             }
-            // Show ProcessDialog
+            else
+            {
+                FileContentBox.Text = sb.ToString();
+            }
+
+            CloseLoadingDialog();
+            ChangeGuiLockingState(GuiLockingState.Release);
+        }
+        private void ShowProcessingDialog()
+        {
             pd = new ProcessingDialog();
             pd.ProcessCancellingRequested += OnProcessingDialog_Cancel;
             pd.ShowDialog();
         }
-        private void StopLockingGUI()
+        private void CloseProcessingDialog()
         {
-            // Close ProcessingDialog if necessary.
             if (pd != null)
             {
                 pd.ProcessCancellingRequested -= OnProcessingDialog_Cancel;
                 pd.Close();
                 pd = null;
             }
-
-            // Reenable controls
-            foreach (Control cntrl in this.Controls)
+        }
+        private void ShowLoadingDialog(string fileName)
+        {
+            ld = new LoadingDialog(file.GetName());
+            ld.LoadingCancellingRequested += Loading_LoadingCancellingRequested;
+            ld.ShowDialog();
+        }
+        private void CloseLoadingDialog()
+        {
+            if (ld != null)
+                ld.Close();
+        }
+        private void ChangeGuiLockingState(GuiLockingState gls)
+        {
+            // Determine whether GUI components should be enabled or disabled
+            bool enabled = true; // Default: Enabled/Unlocked GUI
+            switch (gls)
             {
-                cntrl.Enabled = true;
+                case (GuiLockingState.Release):
+                    enabled = true;
+                    break;
+                case (GuiLockingState.Lock):
+                    enabled = false;
+                    break;
+            }
+
+            if (this.InvokeRequired)
+            {
+                //this.Invoke((MethodInvoker)delegate { ChangeGuiLockingState(gls); });
+                this.Invoke(new Action(() => ChangeGuiLockingState(gls)));
+            }
+            else
+            {
+                // Disable controls
+                foreach (Control cntrl in this.Controls)
+                {
+                    cntrl.Enabled = enabled;
+                }
             }
         }
         private void ShowProcessingResult(ProcessingDialogResult processingDialogResult)
@@ -674,6 +752,7 @@ namespace RAPIS_FIMC
         }
         public enum ProcessingDialogResult { Success, Cancelled, Failed };
 
+        public enum GuiLockingState { Lock, Release }
         #endregion
 
     }

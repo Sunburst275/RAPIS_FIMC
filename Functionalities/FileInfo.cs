@@ -119,6 +119,7 @@ namespace RAPIS_FIMC
         }
         public void SetContent(List<string> content)
         {
+            if (content == null) throw new NullReferenceException("content of file == null");
             this.content.Clear();
             this.content = content;
         }

@@ -1,6 +1,6 @@
-﻿namespace RAPIS_FIMC
+﻿namespace RAPIS_FIMC.Dialogs
 {
-    partial class ProcessingDialog
+    partial class LoadingDialog
     {
         /// <summary>
         /// Required designer variable.
@@ -28,9 +28,19 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.MessageLabel = new System.Windows.Forms.Label();
             this.CancelButton = new System.Windows.Forms.Button();
+            this.MessageLabel = new System.Windows.Forms.Label();
             this.SuspendLayout();
+            // 
+            // CancelButton
+            // 
+            this.CancelButton.Location = new System.Drawing.Point(297, 76);
+            this.CancelButton.Name = "CancelButton";
+            this.CancelButton.Size = new System.Drawing.Size(75, 23);
+            this.CancelButton.TabIndex = 0;
+            this.CancelButton.Text = "Cancel";
+            this.CancelButton.UseVisualStyleBackColor = true;
+            this.CancelButton.Click += new System.EventHandler(this.CancelButton_Click);
             // 
             // MessageLabel
             // 
@@ -38,31 +48,21 @@
             this.MessageLabel.Location = new System.Drawing.Point(13, 13);
             this.MessageLabel.Name = "MessageLabel";
             this.MessageLabel.Size = new System.Drawing.Size(16, 13);
-            this.MessageLabel.TabIndex = 0;
+            this.MessageLabel.TabIndex = 1;
             this.MessageLabel.Text = "...";
             // 
-            // CancelButton
-            // 
-            this.CancelButton.Location = new System.Drawing.Point(297, 76);
-            this.CancelButton.Name = "CancelButton";
-            this.CancelButton.Size = new System.Drawing.Size(75, 23);
-            this.CancelButton.TabIndex = 1;
-            this.CancelButton.Text = "Cancel";
-            this.CancelButton.UseVisualStyleBackColor = true;
-            this.CancelButton.Click += new System.EventHandler(this.CancelButton_Click);
-            // 
-            // ProcessingDialog
+            // LoadingDialog
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(384, 111);
             this.ControlBox = false;
-            this.Controls.Add(this.CancelButton);
             this.Controls.Add(this.MessageLabel);
+            this.Controls.Add(this.CancelButton);
             this.MaximumSize = new System.Drawing.Size(400, 150);
             this.MinimumSize = new System.Drawing.Size(400, 150);
-            this.Name = "ProcessingDialog";
-            this.Text = "RAPIS FIMC - Processing...";
+            this.Name = "LoadingDialog";
+            this.Text = "Loading file...";
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -70,7 +70,7 @@
 
         #endregion
 
+        private new System.Windows.Forms.Button CancelButton;
         private System.Windows.Forms.Label MessageLabel;
-        private System.Windows.Forms.Button CancelButton;
     }
 }
