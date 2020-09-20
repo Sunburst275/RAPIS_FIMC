@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -155,6 +156,15 @@ namespace RAPIS_FIMC
         {
             string[] filePathAndNameSplitted = filePathAndName.Split(System.IO.Path.DirectorySeparatorChar);
             return filePathAndNameSplitted[filePathAndNameSplitted.Length - 1];
+        }
+        public static bool IsValidFileType(string fileExtension)
+        {
+            foreach(KeyValuePair<FileType, string> de in supportedFileTypes)
+            {
+                if (de.Value == fileExtension)
+                    return true;
+            }
+            return false;
         }
         #endregion
     }

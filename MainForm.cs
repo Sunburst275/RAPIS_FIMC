@@ -14,7 +14,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.CodeDom;
-using RAPIS_FIMC.Dialogs;
 using System.Runtime.CompilerServices;
 
 namespace RAPIS_FIMC
@@ -22,23 +21,26 @@ namespace RAPIS_FIMC
     public partial class MainForm : Form
     {
         #region Extra TODO
+        // + Commandline starting
+        //      + Normal process
+        //      + Help-MessageBox
+        // - Recognize non-ASCII characters!
         // - Multiline select:
-        //      - Manual select:
-        //          - Calculate column
-        //          - Write into 
-        //      - UpDownBox select:
-        //          - Calculate columns
-        // - Check max/min length of lines
+        //      + Manual select:
+        //          + Calculate column
+        //      + UpDownBox select:
+        //          + Calculate columns
+        //      ? Capture mouse release for better performance on calculating "IsValidSelection()"
+        // ? Check max/min length of lines
         // + Row/Column labels in Designer
         // + Writing file in extra thread
         //      + Please wait dialog
         // + SaveFileDialog()
-        // - Load in seperate thread
+        // x Load in seperate thread
         //      - Dialog
         // + Save in seperate thread
-        // - About/Help
-        //      - Write, that only one-line-selection is possible
-        // ? Capture mouse release for better performance on calculating "IsValidSelection()"
+        // + About/Help
+        //      + Write, that only one-line-selection is possible
         #endregion
         #region Constants
         // Messages
@@ -49,12 +51,13 @@ namespace RAPIS_FIMC
 
         // Other
         const int MaxCurrentlyOpenedLabelLength = 72;
+        const int MaxCurrentlyOpenedDialogLabelLength = 100;
         #endregion
         #region Events / Delegates
         public delegate void OnProcessingDialog_Cancel_Delegate();
         #endregion
         #region Variables
-        private string mainThreadName;
+        private string[] cmdLineArgs;
 
         private FileInfo file;
         private int from = 0;
@@ -63,17 +66,18 @@ namespace RAPIS_FIMC
         private LineBounds currentLine;
 
         private ProcessingDialog pd;
-        private LoadingDialog ld;
         private bool loadingFileCancelled = false;
 
         private Thread writingThread;
         #endregion
         #region Constructors
-        public MainForm()
+        public MainForm(string[] cmdLineArgs)
         {
             InitializeComponent();
             Initialization();
-            mainThreadName = Thread.CurrentThread.Name;
+
+            this.cmdLineArgs = cmdLineArgs;
+            ProcessCmdLineArgs();
         }
         private void Initialization()
         {
@@ -277,9 +281,9 @@ namespace RAPIS_FIMC
             int realFrom = fromAndTo.Item1;
             int realTo = fromAndTo.Item2;
 
-            //DBG: Just to not have to save to a file all the time. This way its easier to get the algorithm working.
-            RemoveColumSpanInContent(file.GetContent(), realFrom, realTo);
-            return;
+            ////DBG: Just to not have to save to a file all the time. This way its easier to get the algorithm working.
+            //RemoveColumSpanInContent(file.GetContent(), realFrom, realTo);
+            //return;
 
             using (SaveFileDialog svd = new SaveFileDialog())
             {
@@ -297,9 +301,11 @@ namespace RAPIS_FIMC
                 svd.RestoreDirectory = true;
                 svd.CheckPathExists = true;
 
+                bool errorOccured = false;
                 DialogResult dr = svd.ShowDialog();
                 if (dr == DialogResult.OK)
                 {
+                    // TODO: Also seems to cripple here...
                     // Start new thread and show MessageBox "done" when done
                     ChangeGuiLockingState(GuiLockingState.Lock);
                     ShowProcessingDialog();
@@ -313,15 +319,19 @@ namespace RAPIS_FIMC
                     }
                     catch (Exception)
                     {
-                        CloseProcessingDialog();
-                        ChangeGuiLockingState(GuiLockingState.Release);
-                        ShowProcessingResult(ProcessingDialogResult.Failed);
-                        return;
+                        errorOccured = true;
                     }
 
                     CloseProcessingDialog();
                     ChangeGuiLockingState(GuiLockingState.Release);
-                    ShowProcessingResult(ProcessingDialogResult.Success);
+                    if (errorOccured)
+                    {
+                        ShowProcessingResult(ProcessingDialogResult.Failed);
+                    }
+                    else
+                    {
+                        ShowProcessingResult(ProcessingDialogResult.Success);
+                    }
                     return;
                 }
             }
@@ -369,16 +379,8 @@ namespace RAPIS_FIMC
                 ShowProcessingResult(ProcessingDialogResult.Cancelled);
             }
         }
-        private void Loading_LoadingCancellingRequested(object sender, EventArgs args)
-        {
-            // TODO:    Go on here!
-            //          Fight the problem with the cancellation of the loading process.
-            loadingFileCancelled = true;
-            //ChangeGuiLockingState(GuiLockingState.Release);
-            //CloseLoadingDialog();
-        }
         #endregion
-        #region Read/Write file
+        #region Read/Write file & processing
         private List<string> LoadFile()
         {
             List<string> stringyContent = new List<string>();
@@ -427,6 +429,53 @@ namespace RAPIS_FIMC
                     throw;
                 }
             }
+        }
+        private List<string> RemoveColumSpanInContent(List<string> content, int from, int to)
+        {
+            List<string> contentToEdit = content;
+            List<string> editedContent = contentToEdit;
+
+            // TODO: Still doesnt work as intended. Maybe indexing is wrong, or conditions are not right.
+            // FYI: Update: Seems to be working now (changed "-1" in row 491). -> Still needs further checking. Try to check with a file with numberes columns
+            // FYI: Update: Doesnt seem to work... somethings weird. Try to get this working!
+
+            // DBG: Only to show what was in there before
+            Console.WriteLine("=================================================");
+            Console.Write("Original:\n");
+            for (int item = 0; item < contentToEdit.Count; item++)
+            {
+                Console.WriteLine(contentToEdit[item]);
+            }
+
+            // DBG: Same thing
+            Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
+            Console.Write("Edited:\n");
+
+            // Removing columns in lines according to specified "from" and "to"
+            for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
+            {
+                var varLength = contentToEdit[itemIndex].Length;// - 1;
+                if (varLength < from)
+                {
+                    // Line is too short for the removing of these columns. -> Do noting
+                }
+                else if (varLength >= from && varLength <= to)
+                {
+                    // Line is too short for the removing from "from" to "to", only "from" is in bounds. 
+                    // -> Delete from "from" to end of the line (varLength)
+                    contentToEdit[itemIndex].Remove(from, varLength - from);
+                }
+                else
+                {
+                    // Line is long enough to have char's removed in between "from" and "to".
+                    editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, to - from);
+                }
+
+                // DBG: Only to show the result of the operation
+                Console.WriteLine(editedContent[itemIndex]);
+            }
+
+            return editedContent;
         }
         #endregion
         #region Helper
@@ -568,53 +617,6 @@ namespace RAPIS_FIMC
             realTo = (to - from) + realFrom;
             return Tuple.Create(realFrom, realTo);
         }
-        private List<string> RemoveColumSpanInContent(List<string> content, int from, int to)
-        {
-            List<string> contentToEdit = content;
-            List<string> editedContent = contentToEdit;
-
-            // TODO: Still doesnt work as intended. Maybe indexing is wrong, or conditions are not right.
-            // FYI: Update: Seems to be working now (changed "-1" in row 491). -> Still needs further checking. Try to check with a file with numberes columns
-            // FYI: Update: Doesnt seem to work... somethings weird. Try to get this working!
-
-            // DBG: Only to show what was in there before
-            Console.WriteLine("=================================================");
-            Console.Write("Original:\n");
-            for (int item = 0; item < contentToEdit.Count; item++)
-            {
-                Console.WriteLine(contentToEdit[item]);
-            }
-
-            // DBG: Same thing
-            Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
-            Console.Write("Edited:\n");
-
-            // Removing columns in lines according to specified "from" and "to"
-            for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
-            {
-                var varLength = contentToEdit[itemIndex].Length;// - 1;
-                if (varLength < from)
-                {
-                    // Line is too short for the removing of these columns. -> Do noting
-                }
-                else if (varLength >= from && varLength <= to)
-                {
-                    // Line is too short for the removing from "from" to "to", only "from" is in bounds. 
-                    // -> Delete from "from" to end of the line (varLength)
-                    contentToEdit[itemIndex].Remove(from, varLength - from);
-                }
-                else
-                {
-                    // Line is long enough to have char's removed in between "from" and "to".
-                    editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, to - from);
-                }
-
-                // DBG: Only to show the result of the operation
-                Console.WriteLine(editedContent[itemIndex]);
-            }
-
-            return editedContent;
-        }
         private void DisplayFileContentsInTextBox(List<string> readLines)
         {
             if (readLines.Count <= 0 || readLines == null)
@@ -635,8 +637,6 @@ namespace RAPIS_FIMC
             {
                 FileContentBox.Text = sb.ToString();
             }
-
-            CloseLoadingDialog();
             ChangeGuiLockingState(GuiLockingState.Release);
         }
         private void ShowProcessingDialog()
@@ -656,14 +656,25 @@ namespace RAPIS_FIMC
         }
         private void ShowLoadingDialog(string fileName)
         {
-            ld = new LoadingDialog(file.GetName());
-            ld.LoadingCancellingRequested += Loading_LoadingCancellingRequested;
-            ld.ShowDialog();
-        }
-        private void CloseLoadingDialog()
-        {
-            if (ld != null)
-                ld.Close();
+            // Building message
+            StringBuilder sb = new StringBuilder();
+            {
+                sb.AppendLine("Loading file:");
+                if (fileName.Length <= MaxCurrentlyOpenedDialogLabelLength)
+                {
+                    sb.AppendLine(fileName);
+                }
+                else
+                {
+                    string spacedotdotdot = " ...";
+                    int removeFrom = MaxCurrentlyOpenedDialogLabelLength - spacedotdotdot.Length;
+                    int removeCount = fileName.Length - removeFrom;
+                    string castractedFileName = fileName.Remove(removeFrom, removeCount);
+                    sb.AppendLine(castractedFileName + spacedotdotdot);
+                }
+                sb.AppendLine("Please wait...");
+            }
+            MessageBox.Show(sb.ToString(), "Loading file...", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         private void ChangeGuiLockingState(GuiLockingState gls)
         {
@@ -700,23 +711,121 @@ namespace RAPIS_FIMC
             {
                 case (ProcessingDialogResult.Success):
                     MessageBox.Show("Removal of specified columns is done.\nYou may close the program now\nor continue.",
-                                    "RAPIS FIMC - Processing done",
+                                    Program.ProgramHeader + "Processing done",
                                     MessageBoxButtons.OK,
                                     MessageBoxIcon.Information);
                     break;
                 case (ProcessingDialogResult.Cancelled):
                     MessageBox.Show("Removal of specified columns was cancelled.\nYou may close the program now\nor continue.",
-                        "RAPIS FIMC - Processing cancelled",
+                        Program.ProgramHeader + "Processing cancelled",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Exclamation);
                     break;
                 case (ProcessingDialogResult.Failed):
                     MessageBox.Show("Removal of specified columns failed.\nYou may close the program now\nor continue.",
-                        "RAPIS FIMC - Error",
+                        Program.ProgramHeader + "Error",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
                     break;
             }
+        }
+        private void ProcessCmdLineArgs()
+        {
+            int index = Program.CmdLineArgumentOffset;
+
+            // Check whether arguments are more than one
+            if (cmdLineArgs.Length <= index)
+                return;
+
+            // Process control variables
+            List<Exception> exceptions = new List<Exception>();
+            bool errorOccured = false;
+            int exitCode = 0;
+
+            // Lock GUI because its in cmdline mode
+            ChangeGuiLockingState(GuiLockingState.Lock); 
+
+            // Load arguments into meaningful var's
+            var source = cmdLineArgs[index++];
+            var from = cmdLineArgs[index++];
+            var to = cmdLineArgs[index++];
+            var destination = cmdLineArgs[index++];
+            
+            // Convert int's
+            int iFrom, iTo;
+            if(!int.TryParse(from, out iFrom))
+            {
+                exceptions.Add(new Exception("Couldn't parse \"from\"-integer"));
+                errorOccured = true;
+            }
+            if (!int.TryParse(to, out iTo))
+            {
+                exceptions.Add(new Exception("Couldn't parse \"to\"-integer"));
+                errorOccured = true;
+            }
+
+            // Load file
+            file.SetPathAndName(source);
+            List<string> content = new List<string>();
+            try
+            {
+                 content = LoadFile();
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+                errorOccured = true;
+            }
+
+            // Remove columns
+            content = RemoveColumSpanInContent(content, iFrom, iTo);
+
+            // Write file
+            try
+            {
+                WriteFile(content, destination);
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+                errorOccured = true;
+            }
+
+            // If necessary, show exceptions and errors
+            if(errorOccured)
+            {
+                // Build message
+                StringBuilder sb = new StringBuilder();
+                {
+                    sb.AppendLine("Errors occured during the process:");
+                    sb.AppendLine("\n[Start List of errors]");
+                    if (exceptions.Count == 0)
+                    {
+                        sb.AppendLine("\n...");
+                    }
+                    else
+                    {
+                        foreach (Exception ex in exceptions)
+                        {
+                            sb.AppendLine("\n" + ex.Message);
+                        }
+                    }
+                    sb.AppendLine("\n[End List of error]\n");
+                    sb.AppendLine("Please check your input- and output-files, whether you used this program as described, and if the input parameters were correct:");
+                    sb.AppendLine("<Source> <From> <To> <Destination>");
+                    sb.AppendLine("");
+                }
+                MessageBox.Show(sb.ToString(), "Errors occured during program execution!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                exitCode++;
+            }
+            else
+            {
+                MessageBox.Show("Program executed without errors.", Program.ProgramHeader + "Processing done.", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+
+            // Close program
+            Environment.Exit(exitCode);
         }
         #endregion
         #region Helping structures
@@ -751,7 +860,6 @@ namespace RAPIS_FIMC
 
         }
         public enum ProcessingDialogResult { Success, Cancelled, Failed };
-
         public enum GuiLockingState { Lock, Release }
         #endregion
 

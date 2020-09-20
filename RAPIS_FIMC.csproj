@@ -70,12 +70,6 @@
     <Compile Include="Dialogs\AboutDialog.Designer.cs">
       <DependentUpon>AboutDialog.cs</DependentUpon>
     </Compile>
-    <Compile Include="Dialogs\LoadingDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Dialogs\LoadingDialog.Designer.cs">
-      <DependentUpon>LoadingDialog.cs</DependentUpon>
-    </Compile>
     <Compile Include="Functionalities\FileInfo.cs" />
     <Compile Include="Functionalities\FileReadException.cs" />
     <Compile Include="MainForm.cs">
@@ -94,9 +88,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Dialogs\AboutDialog.resx">
       <DependentUpon>AboutDialog.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Dialogs\LoadingDialog.resx">
-      <DependentUpon>LoadingDialog.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
