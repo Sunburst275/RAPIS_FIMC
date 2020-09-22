@@ -24,6 +24,9 @@ namespace RAPIS_FIMC
             // Get commandline args
             string[] cmdLineArgs = Environment.GetCommandLineArgs();
 
+            // Test cmdlineargs:
+            // C:\Users\Timo\Desktop\Testus\Text\dolandark.txt 2 5 C:\Users\Timo\Desktop\Testus\Text\dolandark_cmd.csv
+
             // Check command line arguments for validity and show messages if necessary
             if (cmdLineArgs.Length != 0 + CmdLineArgumentOffset)
             {
@@ -79,22 +82,22 @@ namespace RAPIS_FIMC
             Console.WriteLine(string.Format("Command line arguments:\n{0}\t{1}\t{2}\t{3}", source, from, to, destination));
 
             // Check whether values are convertible
-            int iFrom, iTo;
-            if (!int.TryParse(from, out iFrom))
+            if (!int.TryParse(from, out _))
             {
                 return false;
             }
-            if (!int.TryParse(to, out iTo))
+            if (!int.TryParse(to, out _))
             {
                 return false;
             }
 
             // Check whether the files are supported files
-            var sourceFileType = FileInfo.ExtractFileType(FileInfo.ExtractFileName(source));
-            var destinationFileType = FileInfo.ExtractFileType(FileInfo.ExtractFileName(destination));
-            if (!FileInfo.IsValidFileType(sourceFileType))
+            string sourceFileExtension = FileInfo.ExtractFileExtension(FileInfo.ExtractFileName(source));
+            string destinationFileExtension = FileInfo.ExtractFileExtension(FileInfo.ExtractFileName(destination));
+
+            if (!FileInfo.IsValidFileType(sourceFileExtension))
                 return false;
-            if (!FileInfo.IsValidFileType(destinationFileType))
+            if (!FileInfo.IsValidFileType(destinationFileExtension))
                 return false;
 
             return true;

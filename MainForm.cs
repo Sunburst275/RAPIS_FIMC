@@ -24,7 +24,7 @@ namespace RAPIS_FIMC
         // + Commandline starting
         //      + Normal process
         //      + Help-MessageBox
-        // - Recognize non-ASCII characters!
+        // + Recognize non-ASCII characters!
         // - Multiline select:
         //      + Manual select:
         //          + Calculate column
@@ -35,6 +35,7 @@ namespace RAPIS_FIMC
         // + Row/Column labels in Designer
         // + Writing file in extra thread
         //      + Please wait dialog
+        // - Check whether writing the file was successful or not
         // + SaveFileDialog()
         // x Load in seperate thread
         //      - Dialog
@@ -57,7 +58,7 @@ namespace RAPIS_FIMC
         public delegate void OnProcessingDialog_Cancel_Delegate();
         #endregion
         #region Variables
-        private string[] cmdLineArgs;
+        private readonly string[] cmdLineArgs;
 
         private FileInfo file;
         private int from = 0;
@@ -66,7 +67,6 @@ namespace RAPIS_FIMC
         private LineBounds currentLine;
 
         private ProcessingDialog pd;
-        private bool loadingFileCancelled = false;
 
         private Thread writingThread;
         #endregion
@@ -388,7 +388,7 @@ namespace RAPIS_FIMC
             {
                 using (StreamReader sR = new StreamReader(new FileStream(file.GetPathAndName(), FileMode.Open)))
                 {
-                    while (!sR.EndOfStream && !loadingFileCancelled)
+                    while (!sR.EndOfStream)
                         stringyContent.Add(sR.ReadLine());
                 }
             }
@@ -406,6 +406,7 @@ namespace RAPIS_FIMC
         }
         private void WriteFile(List<string> content, string filePath)
         {
+            // TODO: Inform youself: How to best handle problems of file writing/reading
             var errorOccured = false;
             if (string.IsNullOrEmpty(filePath) || content == null || content.Count <= 0)
             {
@@ -414,7 +415,10 @@ namespace RAPIS_FIMC
             }
             using (StreamWriter sW = new StreamWriter(new FileStream(filePath, FileMode.OpenOrCreate), Encoding.UTF8))
             {
-                Console.WriteLine("filePath = " + filePath);
+                //Console.WriteLine("filePath = " + filePath);
+
+                // TODO: Content is missing the line 08 when it comes here. Check in "RemoveColumSpanInContent(...)"!
+                // TODO: StreamReader is reading 1 more line than actually should be in the file. Why is there an extra line written?
 
                 try
                 {
@@ -429,41 +433,75 @@ namespace RAPIS_FIMC
                     throw;
                 }
             }
+
+            // TODO: Verify file content and check whether file writing was done successfully
+            List<string> testContent = new List<string>();
+            using (StreamReader sR = new StreamReader(new FileStream(filePath, FileMode.Open), Encoding.UTF8))
+            {
+                try
+                {
+                    while (!sR.EndOfStream)
+                        testContent.Add(sR.ReadLine());
+                }
+                catch (Exception)
+                {
+                    // TODO: Catch errors, show "failed", etc.
+                    throw;
+                }
+            }
+            // If read file is empty
+            if (testContent.Count <= 0)
+            {
+                errorOccured = true;
+            }
+            // Check whether every line in file corresponds to the same line in content
+            for(int i = 0; i < testContent.Count; i++)
+            {
+                if (testContent[i] != content[i])
+                {
+                    errorOccured = true;
+                    break;
+                }
+            }
+
+            if (errorOccured)
+                Console.WriteLine("errorOccured!");
+
+
+
         }
         private List<string> RemoveColumSpanInContent(List<string> content, int from, int to)
         {
             List<string> contentToEdit = content;
             List<string> editedContent = contentToEdit;
 
-            // TODO: Still doesnt work as intended. Maybe indexing is wrong, or conditions are not right.
-            // FYI: Update: Seems to be working now (changed "-1" in row 491). -> Still needs further checking. Try to check with a file with numberes columns
-            // FYI: Update: Doesnt seem to work... somethings weird. Try to get this working!
-
             // DBG: Only to show what was in there before
-            Console.WriteLine("=================================================");
-            Console.Write("Original:\n");
-            for (int item = 0; item < contentToEdit.Count; item++)
             {
-                Console.WriteLine(contentToEdit[item]);
+                Console.WriteLine("=================================================");
+                Console.Write("Original:\n");
+                for (int item = 0; item < contentToEdit.Count; item++)
+                {
+                    Console.WriteLine(contentToEdit[item]);
+                }
+                Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
+                Console.Write("Edited:\n");
             }
-
-            // DBG: Same thing
-            Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
-            Console.Write("Edited:\n");
 
             // Removing columns in lines according to specified "from" and "to"
             for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
             {
+                // TODO: Maybe try to change this. Maybe the problem occurs here (file writing/reading, content etc.)
                 var varLength = contentToEdit[itemIndex].Length;// - 1;
                 if (varLength < from)
                 {
-                    // Line is too short for the removing of these columns. -> Do noting
+                    // Line is too short for the removing of these columns. -> Do nothing
+                    editedContent[itemIndex] = contentToEdit[itemIndex];
                 }
                 else if (varLength >= from && varLength <= to)
                 {
                     // Line is too short for the removing from "from" to "to", only "from" is in bounds. 
                     // -> Delete from "from" to end of the line (varLength)
-                    contentToEdit[itemIndex].Remove(from, varLength - from);
+                    editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, varLength - from);
                 }
                 else
                 {
@@ -499,6 +537,7 @@ namespace RAPIS_FIMC
         private void NumericUpDownBoxChanged()
         {
             // TODO: Show cursor position at fromVal
+            // TODO: Make selection smoother. Whats wrong here? Why is it that cripply?
             FileContentBox.HideSelection = false;
             FileContentBox.ScrollToCaret();
 
@@ -626,17 +665,12 @@ namespace RAPIS_FIMC
             }
 
             StringBuilder sb = new StringBuilder(readLines.Count - 1);
-            for (int i = 0; (i < readLines.Count && !loadingFileCancelled); i++)
+            for (int i = 0; (i < readLines.Count); i++)
                 sb.AppendLine(readLines[i]);
-
-            if (loadingFileCancelled)
-            {
-                FileContentBox.Text = string.Empty;
-            }
-            else
-            {
+            if (sb.Length > 0)
                 FileContentBox.Text = sb.ToString();
-            }
+            else
+                FileContentBox.Text = "";
             ChangeGuiLockingState(GuiLockingState.Release);
         }
         private void ShowProcessingDialog()
@@ -743,22 +777,21 @@ namespace RAPIS_FIMC
             int exitCode = 0;
 
             // Lock GUI because its in cmdline mode
-            ChangeGuiLockingState(GuiLockingState.Lock); 
+            ChangeGuiLockingState(GuiLockingState.Lock);
 
             // Load arguments into meaningful var's
             var source = cmdLineArgs[index++];
             var from = cmdLineArgs[index++];
             var to = cmdLineArgs[index++];
             var destination = cmdLineArgs[index++];
-            
+
             // Convert int's
-            int iFrom, iTo;
-            if(!int.TryParse(from, out iFrom))
+            if (!int.TryParse(from, out int iFrom))
             {
                 exceptions.Add(new Exception("Couldn't parse \"from\"-integer"));
                 errorOccured = true;
             }
-            if (!int.TryParse(to, out iTo))
+            if (!int.TryParse(to, out int iTo))
             {
                 exceptions.Add(new Exception("Couldn't parse \"to\"-integer"));
                 errorOccured = true;
@@ -769,7 +802,7 @@ namespace RAPIS_FIMC
             List<string> content = new List<string>();
             try
             {
-                 content = LoadFile();
+                content = LoadFile();
             }
             catch (Exception e)
             {
@@ -792,7 +825,7 @@ namespace RAPIS_FIMC
             }
 
             // If necessary, show exceptions and errors
-            if(errorOccured)
+            if (errorOccured)
             {
                 // Build message
                 StringBuilder sb = new StringBuilder();

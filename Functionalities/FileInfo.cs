@@ -152,6 +152,11 @@ namespace RAPIS_FIMC
             
             return FileType.other;
         }
+        public static string ExtractFileExtension(string fileNameWithExtension)
+        {
+            string[] fileNameAndExtensionSplitted = fileNameWithExtension.Split('.');
+            return fileNameAndExtensionSplitted[fileNameAndExtensionSplitted.Length - 1];
+        }
         public static string ExtractFileName(string filePathAndName)
         {
             string[] filePathAndNameSplitted = filePathAndName.Split(System.IO.Path.DirectorySeparatorChar);
@@ -166,6 +171,7 @@ namespace RAPIS_FIMC
             }
             return false;
         }
+
         #endregion
     }
 }
