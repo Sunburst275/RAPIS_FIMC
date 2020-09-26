@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.Remoting.Messaging;
 using System.Text;
 
@@ -62,9 +63,9 @@ namespace RAPIS_FIMC
         }
         public string GetFileTypeString()
         {
-            foreach(KeyValuePair<FileType, string> ft in supportedFileTypes)
+            foreach (KeyValuePair<FileType, string> ft in supportedFileTypes)
             {
-                if(ft.Key == extension)
+                if (ft.Key == extension)
                 {
                     return ft.Value;
                 }
@@ -144,12 +145,12 @@ namespace RAPIS_FIMC
             string[] fileNameAndExtensionSplitted = fileNameWithExtension.Split('.');
             string fileExtension = fileNameAndExtensionSplitted[fileNameAndExtensionSplitted.Length - 1];
 
-            foreach(KeyValuePair<FileType, string> ft in supportedFileTypes)
+            foreach (KeyValuePair<FileType, string> ft in supportedFileTypes)
             {
                 if (ft.Value == fileExtension)
                     return ft.Key;
             }
-            
+
             return FileType.other;
         }
         public static string ExtractFileExtension(string fileNameWithExtension)
@@ -164,7 +165,7 @@ namespace RAPIS_FIMC
         }
         public static bool IsValidFileType(string fileExtension)
         {
-            foreach(KeyValuePair<FileType, string> de in supportedFileTypes)
+            foreach (KeyValuePair<FileType, string> de in supportedFileTypes)
             {
                 if (de.Value == fileExtension)
                     return true;
@@ -174,4 +175,59 @@ namespace RAPIS_FIMC
 
         #endregion
     }
+
+    class FileWriteException : Exception
+    {
+        #region Members
+        List<Exception> innerExceptions;
+        #endregion
+        #region Methods
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder(innerExceptions.Count);
+            foreach(Exception ex in innerExceptions)
+            {
+                sb.Append(ex.Message);
+                sb.AppendLine("");
+            }
+
+            return sb.ToString();
+        }
+        public void AddInnerException(Exception ex)
+        {
+            innerExceptions.Add(ex);
+        }
+        #endregion
+        public FileWriteException()
+        {
+            innerExceptions = new List<Exception>();
+        }
+        public FileWriteException(string message)
+        {
+            innerExceptions = new List<Exception>();
+            innerExceptions.Add(new Exception(message));
+        }
+    }
+
+    class FileReadException : Exception
+    {
+        #region Helper Structures
+        public enum FileReadExceptionState { Reading, Empty, Other };
+        #endregion
+        #region Members
+        public FileReadExceptionState fileReadExceptionState;
+        public Exception innerException;
+        #endregion
+        public FileReadException(FileReadExceptionState fileReadExceptionState, Exception innerException)
+        {
+            this.fileReadExceptionState = fileReadExceptionState;
+            this.innerException = innerException;
+        }
+        public FileReadException(FileReadExceptionState fileReadExceptionState)
+        {
+            new FileReadException(fileReadExceptionState, null);
+        }
+
+    }
+
 }

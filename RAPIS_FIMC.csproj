@@ -71,7 +71,6 @@
       <DependentUpon>AboutDialog.cs</DependentUpon>
     </Compile>
     <Compile Include="Functionalities\FileInfo.cs" />
-    <Compile Include="Functionalities\FileReadException.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>

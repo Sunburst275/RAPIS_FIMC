@@ -243,7 +243,7 @@ namespace RAPIS_FIMC
 
             // Set up GUI for "loading"
             ChangeGuiLockingState(GuiLockingState.Lock);
-            ShowLoadingDialog(file.GetName());
+            //ShowLoadingDialog(file.GetName());
 
             List<string> content;
             try
@@ -281,10 +281,6 @@ namespace RAPIS_FIMC
             int realFrom = fromAndTo.Item1;
             int realTo = fromAndTo.Item2;
 
-            ////DBG: Just to not have to save to a file all the time. This way its easier to get the algorithm working.
-            //RemoveColumSpanInContent(file.GetContent(), realFrom, realTo);
-            //return;
-
             using (SaveFileDialog svd = new SaveFileDialog())
             {
                 var pathAndName = file.GetPathAndName();
@@ -302,10 +298,10 @@ namespace RAPIS_FIMC
                 svd.CheckPathExists = true;
 
                 bool errorOccured = false;
+                FileWriteException error = null;
                 DialogResult dr = svd.ShowDialog();
                 if (dr == DialogResult.OK)
                 {
-                    // TODO: Also seems to cripple here...
                     // Start new thread and show MessageBox "done" when done
                     ChangeGuiLockingState(GuiLockingState.Lock);
                     ShowProcessingDialog();
@@ -317,6 +313,11 @@ namespace RAPIS_FIMC
                         });
                         writingThread.Start();
                     }
+                    catch (FileWriteException ex)
+                    {
+                        error = ex;
+                        errorOccured = true;
+                    }
                     catch (Exception)
                     {
                         errorOccured = true;
@@ -326,6 +327,10 @@ namespace RAPIS_FIMC
                     ChangeGuiLockingState(GuiLockingState.Release);
                     if (errorOccured)
                     {
+                        if (error != null)
+                        {
+                            WriteErrorLog(error, svd.FileName);
+                        }
                         ShowProcessingResult(ProcessingDialogResult.Failed);
                     }
                     else
@@ -408,67 +413,134 @@ namespace RAPIS_FIMC
         {
             // TODO: Inform youself: How to best handle problems of file writing/reading
             var errorOccured = false;
+            FileWriteException fileWriteException = new FileWriteException();
+
             if (string.IsNullOrEmpty(filePath) || content == null || content.Count <= 0)
             {
-                // TODO: Error messages
-                return;
+                throw new FileWriteException("File is empty.");
             }
-            using (StreamWriter sW = new StreamWriter(new FileStream(filePath, FileMode.OpenOrCreate), Encoding.UTF8))
+
+            // Write file
+            try
             {
-                //Console.WriteLine("filePath = " + filePath);
-
-                // TODO: Content is missing the line 08 when it comes here. Check in "RemoveColumSpanInContent(...)"!
-                // TODO: StreamReader is reading 1 more line than actually should be in the file. Why is there an extra line written?
-
-                try
+                using (StreamWriter sW = new StreamWriter(new FileStream(filePath, FileMode.Create), Encoding.UTF8))
                 {
                     for (int index = 0; index < content.Count; index++)
-                    {
                         sW.WriteLine(content.ElementAt(index));
-                    }
-                }
-                catch (Exception)
-                {
-                    // TODO: Catch errors, show "failed", etc.
-                    throw;
                 }
             }
-
-            // TODO: Verify file content and check whether file writing was done successfully
-            List<string> testContent = new List<string>();
-            using (StreamReader sR = new StreamReader(new FileStream(filePath, FileMode.Open), Encoding.UTF8))
+            catch (Exception ex)
             {
-                try
+                fileWriteException.AddInnerException(ex);
+                errorOccured = true;
+            }
+
+            // Verify file content and check whether file writing was done successfully
+            List<string> testContent = new List<string>();
+            try
+            {
+                using (StreamReader sR = new StreamReader(new FileStream(filePath, FileMode.Open), Encoding.UTF8))
                 {
                     while (!sR.EndOfStream)
                         testContent.Add(sR.ReadLine());
                 }
-                catch (Exception)
-                {
-                    // TODO: Catch errors, show "failed", etc.
-                    throw;
-                }
+            }
+            catch (Exception ex)
+            {
+                fileWriteException.AddInnerException(ex);
+                errorOccured = true;
             }
             // If read file is empty
             if (testContent.Count <= 0)
             {
+                fileWriteException.AddInnerException(new Exception("Written file was empty."));
                 errorOccured = true;
             }
-            // Check whether every line in file corresponds to the same line in content
-            for(int i = 0; i < testContent.Count; i++)
+            // Check whether every line in file corresponds to the same line in content           
+            if (testContent.Count != content.Count)
             {
-                if (testContent[i] != content[i])
+                fileWriteException.AddInnerException(new Exception("Written content is not the same as the generated content."));
+                errorOccured = true;
+            }
+            else
+            {
+                for (int i = 0; i < testContent.Count; i++)
                 {
-                    errorOccured = true;
-                    break;
+                    if (testContent[i] != content[i])
+                    {
+                        fileWriteException.AddInnerException(new Exception("Written content is not the same as the generated content."));
+                        errorOccured = true;
+                        break;
+                    }
                 }
             }
 
+            // DBG: Test write file errors 
+            errorOccured = true;
+            fileWriteException.AddInnerException(new Exception("TesticleException"));
+
+            // TODO: Sometimes the exception is unhandled... why? Related to [x]?
             if (errorOccured)
-                Console.WriteLine("errorOccured!");
+            {
+                throw fileWriteException;
+            }
+        }
+        private void WriteFile(string content, string filePath)
+        {
+            // Convert string to lines of content
+            string[] splitContent = content.Split(Environment.NewLine.ToCharArray());
+            List<string> listedContent = new List<string>();
+            for (int i = 0; i < splitContent.Length; i++)
+            {
+                try
+                {
+                    listedContent.Add(splitContent[i]);
+                }
+                catch (Exception)
+                {
+                    // TODO: Errors, etc.
+                    throw;
+                }
+            }
 
+            // TODO: Should I catch here ? Related to [x]?
+            try
+            {
+                WriteFile(listedContent, filePath);
+            }
+            catch(Exception)
+            {
 
+            }
+        }
+        private void WriteErrorLog(FileWriteException exception, string filePath)
+        {
+            // Change from written file to [...]_error.log
+            string onlyFilePath = System.IO.Path.GetDirectoryName(filePath); //FileInfo.ExtractFilePath(filePath);
+            string onlyFileName = System.IO.Path.GetFileNameWithoutExtension(filePath); //FileInfo.ExtractFileName(filePath);
+            string newFilePath = (onlyFilePath + System.IO.Path.DirectorySeparatorChar + onlyFileName + "_error.log");
 
+            // TODO: Create error log content
+            StringBuilder sb = new StringBuilder();
+            {
+                sb.AppendLine("Error log:");
+                sb.AppendLine("The file \"" + filePath + "\" couldn't be written properly.");
+                sb.AppendLine("Below is a list of errors that occured:");
+                sb.AppendLine("");
+                sb.AppendLine("[Start error list]");
+                sb.Append(exception.ToString());
+                sb.AppendLine("[End error list]");
+                sb.AppendLine("For more information, visit: \"https:\\\\Sunburst275.jimdofree.com\\\" and/or contact Sunburst275 himself (\"\\Sunburst275.jimdofree.com\\contact\\\")");
+            }
+
+            try
+            {
+                WriteFile(sb.ToString(), newFilePath);
+            }
+            catch (Exception)
+            {
+                // Ignore
+            }
         }
         private List<string> RemoveColumSpanInContent(List<string> content, int from, int to)
         {
@@ -476,21 +548,20 @@ namespace RAPIS_FIMC
             List<string> editedContent = contentToEdit;
 
             // DBG: Only to show what was in there before
-            {
-                Console.WriteLine("=================================================");
-                Console.Write("Original:\n");
-                for (int item = 0; item < contentToEdit.Count; item++)
-                {
-                    Console.WriteLine(contentToEdit[item]);
-                }
-                Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
-                Console.Write("Edited:\n");
-            }
+            //{
+            //    Console.WriteLine("=================================================");
+            //    Console.Write("Original:\n");
+            //    for (int item = 0; item < contentToEdit.Count; item++)
+            //    {
+            //        Console.WriteLine(contentToEdit[item]);
+            //    }
+            //    Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
+            //    Console.Write("Edited:\n");
+            //}
 
             // Removing columns in lines according to specified "from" and "to"
             for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
             {
-                // TODO: Maybe try to change this. Maybe the problem occurs here (file writing/reading, content etc.)
                 var varLength = contentToEdit[itemIndex].Length;// - 1;
                 if (varLength < from)
                 {
@@ -510,7 +581,7 @@ namespace RAPIS_FIMC
                 }
 
                 // DBG: Only to show the result of the operation
-                Console.WriteLine(editedContent[itemIndex]);
+                //Console.WriteLine(editedContent[itemIndex]);
             }
 
             return editedContent;
@@ -550,7 +621,7 @@ namespace RAPIS_FIMC
             {
                 ToNumericUpDown.Value = toVal = fromVal;
             }
-            // TODO: Max line length check, too
+            // TODO: Max line length check, too (Really?)
 
             // Selection calculation and setting
             FileContentBox.SelectionStart = fromVal;
@@ -756,7 +827,7 @@ namespace RAPIS_FIMC
                         MessageBoxIcon.Exclamation);
                     break;
                 case (ProcessingDialogResult.Failed):
-                    MessageBox.Show("Removal of specified columns failed.\nYou may close the program now\nor continue.",
+                    MessageBox.Show("Removal of specified columns failed.\nAn error log should be in the directory you wanted to save your file in. You may close the program now or continue.",
                         Program.ProgramHeader + "Error",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
