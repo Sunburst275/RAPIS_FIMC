@@ -26,12 +26,13 @@ namespace RAPIS_FIMC
         private void TextBoxInitialization()
         {
             TextBox.BorderStyle = BorderStyle.None;
-            
+            string tmpTextBoxText = ("RAPIS FIMC\n" + "Version" + Program.Version.ToString() + "\n\n" + TextBox.Text);
+            TextBox.Text = tmpTextBoxText;
         }
 
         private void Sunburst275Button_Click(object sender, EventArgs e)
         {
-            System.Diagnostics.Process.Start("https://sunburst275.jimdofree.com/");
+            System.Diagnostics.Process.Start(Program.WebsiteLink);
         }
     }
 }

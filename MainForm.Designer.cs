@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.LoadButton = new System.Windows.Forms.Button();
             this.BrowseButton = new System.Windows.Forms.Button();
             this.FileTextBox = new System.Windows.Forms.TextBox();
@@ -168,7 +169,6 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(719, 336);
-            this.ControlBox = false;
             this.Controls.Add(this.AboutButton);
             this.Controls.Add(this.CurrentlyOpenedLabel);
             this.Controls.Add(this.CloseButton);
@@ -181,6 +181,7 @@
             this.Controls.Add(this.FileTextBox);
             this.Controls.Add(this.BrowseButton);
             this.Controls.Add(this.LoadButton);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
             this.MaximumSize = new System.Drawing.Size(735, 375);
             this.MinimumSize = new System.Drawing.Size(735, 375);

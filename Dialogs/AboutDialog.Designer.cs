@@ -73,6 +73,7 @@
             this.Controls.Add(this.Sunburst275Button);
             this.Controls.Add(this.CloseButton);
             this.Controls.Add(this.TextBox);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximumSize = new System.Drawing.Size(275, 375);
             this.MinimumSize = new System.Drawing.Size(275, 375);
             this.Name = "AboutDialog";

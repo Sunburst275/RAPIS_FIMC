@@ -1,30 +1,39 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 
 namespace RAPIS_FIMC
 {
-
     static class Program
     {
-        public static string ProgramHeader = "RAPIS FIMC - ";
+        #region Constants
+        public static System.Globalization.CultureInfo ICul = System.Globalization.CultureInfo.CurrentCulture; // Invariant current system culture
+        public static string WebsiteLink = "https://sunburst275.jimdofree.com/";
+        public static string ProgramHeader = "RAPIS FIMC";
+        public static string ProgramHeaderWithDash = "RAPIS FIMC - ";
         public static int CmdLineArgumentOffset = 1;
+        #endregion
+        #region Variables
+        public static Version Version;
+        #endregion
 
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
+        /// <summary>The main entry point for the application.</summary>
         [STAThread]
         static void Main()
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            CreateVersion();
+
             // Get commandline args
             string[] cmdLineArgs = Environment.GetCommandLineArgs();
 
-            // Test cmdlineargs:
+            // DBG: Test cmdlineargs:
             // C:\Users\Timo\Desktop\Testus\Text\dolandark.txt 2 5 C:\Users\Timo\Desktop\Testus\Text\dolandark_cmd.csv
 
             // Check command line arguments for validity and show messages if necessary
@@ -48,21 +57,21 @@ namespace RAPIS_FIMC
                             sb.Append(string.Format("*.{0}\t", entry.Value));
                         }
                     }
-                    DialogResult answ = MessageBox.Show(sb.ToString(), ProgramHeader + "Commandline help", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogResult answ = MessageBox.Show(sb.ToString(), ProgramHeaderWithDash + "Commandline help", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     if (answ == DialogResult.OK)
                         Environment.Exit(0);
                 }
                 // Wrong argument count
                 else if (cmdLineArgs.Length != 4 + CmdLineArgumentOffset)
                 {
-                    DialogResult answ = MessageBox.Show("Number of arguments should be 4.\n\nPlease enter the parameter as follows:\n<Source> <From> <To> <Destination>\nFor help, type \"help\".", ProgramHeader + "Invalid argument count!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DialogResult answ = MessageBox.Show("Number of arguments should be 4.\n\nPlease enter the parameter as follows:\n<Source> <From> <To> <Destination>\nFor help, type \"help\".", ProgramHeaderWithDash + "Invalid argument count!", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     if (answ == DialogResult.OK)
                         Environment.Exit(0);
                 }
                 // Invalid arguments
                 else if (!ValidateCmdLineArguments(cmdLineArgs))
                 {
-                    DialogResult answ = MessageBox.Show("Arguments are faulty.\nPlease enter the parameter as follows:\n<Source> <From> <To> <Destination>\n\nAlso make sure that the source and destination file formats are supported.\nFor help, type \"help\".", ProgramHeader + "Invalid argument(s)!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DialogResult answ = MessageBox.Show("Arguments are faulty.\nPlease enter the parameter as follows:\n<Source> <From> <To> <Destination>\n\nAlso make sure that the source and destination file formats are supported.\nFor help, type \"help\".", ProgramHeaderWithDash + "Invalid argument(s)!", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     if (answ == DialogResult.OK)
                         Environment.Exit(0);
                 }
@@ -71,7 +80,10 @@ namespace RAPIS_FIMC
             Application.Run(new MainForm(cmdLineArgs));
         }
 
-        static bool ValidateCmdLineArguments(string[] args)
+        /// <summary>Validates command line arguments according to the rules of this program.</summary>
+        /// <param name="args">The command line arguments</param>
+        /// <returns>True when they are valid, otherwise false.</returns>
+        public static bool ValidateCmdLineArguments(string[] args)
         {
             int index = CmdLineArgumentOffset;
             var source = args[index++];
@@ -101,6 +113,17 @@ namespace RAPIS_FIMC
                 return false;
 
             return true;
+        }
+        /// <summary>Creates all program version info</summary>
+        private static void CreateVersion()
+        {
+            DateTime today = DateTime.Now;
+            int Major = 1;
+            int Minor = 0;
+            int Build = int.Parse(today.ToString("yy"));
+            int Revision = (int)1e4 + int.Parse(today.ToString("MMdd"));
+            string VersionString = string.Format("{0}.{1}.{2}.{3}", Major, Minor, Build, Revision);
+            Version = Version.Parse(VersionString);
         }
     }
 }

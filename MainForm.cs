@@ -33,15 +33,27 @@ namespace RAPIS_FIMC
         //      ? Capture mouse release for better performance on calculating "IsValidSelection()"
         // ? Check max/min length of lines
         // + Row/Column labels in Designer
-        // + Writing file in extra thread
-        //      + Please wait dialog
-        // - Check whether writing the file was successful or not
+        // x Writing file in extra thread
+        //      x Please wait dialog
+        // + Check whether writing the file was successful or not
         // + SaveFileDialog()
         // x Load in seperate thread
         //      - Dialog
         // + Save in seperate thread
         // + About/Help
         //      + Write, that only one-line-selection is possible
+        // - Add version number everywhere, where it makes sense
+        // - Set icon(s)
+        // ------------------------------------------------------------------
+        // + Comments and description of methods (seperated by regions)
+        //      + Constants
+        //      + Variables
+        //      + Constructors
+        //      + UI Actions
+        //      + Read/Write file & processing
+        //      + Helper
+        //      + Helping structures
+        //      + FileInfo
         #endregion
         #region Constants
         // Messages
@@ -51,8 +63,8 @@ namespace RAPIS_FIMC
         const string UnsupportedFileTypeMsg = "Unsupported file type!";
 
         // Other
-        const int MaxCurrentlyOpenedLabelLength = 72;
-        const int MaxCurrentlyOpenedDialogLabelLength = 100;
+        const int MaxCurrentlyOpenedLabelLength = 72;           // Char limit of opened file displayed in GUI mainform -> Above this will be truncatedly displayed
+        const int MaxCurrentlyOpenedDialogLabelLength = 100;    // Used for the "please wait" dialog. Same as above
         #endregion
         #region Events / Delegates
         public delegate void OnProcessingDialog_Cancel_Delegate();
@@ -60,22 +72,27 @@ namespace RAPIS_FIMC
         #region Variables
         private readonly string[] cmdLineArgs;
 
-        private FileInfo file;
-        private int from = 0;
-        private int to = 0;
-        private List<LineBounds> lB;
-        private LineBounds currentLine;
+        private FileInfo file;          // Info and attributs of currently opened file
+        private int from = 0;           // From which column should be deleted
+        private int to = 0;             // Up to which column should be deleted
+        private List<LineBounds> lB;    // Line bounds for currently opened file
+        private LineBounds currentLine; // Current line that is being tested
 
-        private ProcessingDialog pd;
+        private ProcessingDialog pd;    // Is being shown when processing of the file starts
 
-        private Thread writingThread;
+        private Thread writingThread;   // Thread for writing the file [currently not in use]
         #endregion
         #region Constructors
+        /// <summary>This creates an instance of the MainForm class.</summary>
+        /// <remarks>There should always only be one active at a time.</remarks>
+        /// <param name="cmdLineArgs">Arguments given by the command line.</param>
         public MainForm(string[] cmdLineArgs)
         {
+            // Initialize form, program, compontents
             InitializeComponent();
             Initialization();
 
+            // If command line arguments exist, execute program according to them
             this.cmdLineArgs = cmdLineArgs;
             ProcessCmdLineArgs();
         }
@@ -98,9 +115,15 @@ namespace RAPIS_FIMC
         }
         #endregion
         #region UI Actions
+        /// <summary>Is called by the system when the MainForm is loaded.</summary>
+        /// <remarks>Better not call this on your own.</remarks>
         private void MainForm_Load(object sender, EventArgs e)
         {
         }
+        /// <summary>
+        /// <para/>Is called when the selection of the FileContentBox has changed.
+        /// <para/>Will determine the new "from" and "to" values.
+        /// </summary>
         private void FileContentBox_SelectionChanged(object sender, EventArgs e)
         {
             // TODO: Maybe only execute this when MouseEvent.Released is executed
@@ -131,6 +154,10 @@ namespace RAPIS_FIMC
             FromNumericUpDown.ValueChanged += FromNumericUpDown_ValueChanged;
             ToNumericUpDown.ValueChanged += ToNumericUpDown_ValueChanged;
         }
+        /// <summary>
+        /// <para/>Is called when the BrowseButton was clicked.
+        /// <para/>Determines standard path or path used before. Then sets the pathname of FileInfo to the selected path.
+        /// </summary>
         private void BrowseButton_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog ofd = new OpenFileDialog())
@@ -213,6 +240,11 @@ namespace RAPIS_FIMC
                 }
             }
         }
+        /// <summary>
+        /// <para/>Is called when LoadButton was clicked.
+        /// <para/>Loads the content of the selected file (by browse) into the program and displays it to the FileContentBox.
+        /// <para/>If no file is selected by browse yet, this function will also call BrowseButton_Click(...).
+        /// </summary>
         private void LoadButton_Click(object sender, EventArgs e)
         {
             var pathAndName = file.GetPathAndName();
@@ -269,6 +301,10 @@ namespace RAPIS_FIMC
             PreCalcSelectionBounds();
             SetCurrentlyOpenedLabel(fileName);
         }
+        /// <summary>
+        /// <para/>Is called when StartButton was clicked. 
+        /// <para/>Starts the removing of selected columns and proceeds to write the result to a file.
+        /// </summary>
         private void StartButton_Click(object sender, EventArgs e)
         {
             if (!file.IsValid())
@@ -307,11 +343,13 @@ namespace RAPIS_FIMC
                     ShowProcessingDialog();
                     try
                     {
-                        writingThread = new Thread(() =>
-                        {
-                            WriteFile(RemoveColumSpanInContent(file.GetContent(), realFrom, realTo), svd.FileName);
-                        });
-                        writingThread.Start();
+                        // FYI: Because of the exceptions, this cant be done in another thread...
+                        //writingThread = new Thread(() =>
+                        //{
+                        //    WriteFile(RemoveColumSpanInContent(file.GetContent(), realFrom, realTo), svd.FileName);
+                        //});
+                        //writingThread.Start();
+                        WriteFile(RemoveColumSpanInContent(file.GetContent(), realFrom, realTo), svd.FileName);
                     }
                     catch (FileWriteException ex)
                     {
@@ -341,23 +379,45 @@ namespace RAPIS_FIMC
                 }
             }
         }
+        /// <summary>
+        /// <para/>Is called when CloseButton was clicked.
+        /// <para/>Closes the program immediately.
+        /// </summary>
         private void CloseButton_Click(object sender, EventArgs e)
         {
             this.Dispose();
         }
+        /// <summary>
+        /// <para/>Is called when the AboutButton was clicked.
+        /// <para/>Opens the AboutDialog, a window where info about the program is displayed.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void AboutButton_Click(object sender, EventArgs e)
         {
             var AboutDialog = new AboutDialog();
             AboutDialog.ShowDialog();
         }
+        /// <summary>
+        /// <para/>Is called when the NumericUpDown for the "to" value changes its value.
+        /// <para/>Just calls NumericUpDownBoxChanged(...).
+        /// </summary>
         private void ToNumericUpDown_ValueChanged(object sender, EventArgs e)
         {
             NumericUpDownBoxChanged();
         }
+        /// <summary>
+        /// <para/>Is called when the NumericUpDown for the "from" value changes its value.
+        /// <para/>Just calls NumericUpDownBoxChanged(...).
+        /// </summary>
         private void FromNumericUpDown_ValueChanged(object sender, EventArgs e)
         {
             NumericUpDownBoxChanged();
         }
+        /// <summary>
+        /// <para/>Is called when the cancel button from the processing dialog was clicked.
+        /// <para/>Aborts the removing of the columns and saving of the result into a file and thus stops the whole process.
+        /// </summary>
         private void OnProcessingDialog_Cancel(object sender, EventArgs e)
         {
             if (this.InvokeRequired)
@@ -386,6 +446,8 @@ namespace RAPIS_FIMC
         }
         #endregion
         #region Read/Write file & processing
+        /// <summary>Loads a file specified in the FileInfo's path.</summary>
+        /// <returns>All lines of the file as List<string></returns>
         private List<string> LoadFile()
         {
             List<string> stringyContent = new List<string>();
@@ -409,6 +471,10 @@ namespace RAPIS_FIMC
             // LoadingDialog gets closed in DisplayFileContentsInTextBox(...)
             return stringyContent;
         }
+        /// <summary>Writes all lines in a List<string> into a file specified by filePath and closes the file.</summary>
+        /// <param name="content">List of strings that are to be written into the file. The order is the same as the content of the list itself.</param>
+        /// <param name="filePath">Path and name and extension of the file that should be written.</param>
+        /// <exception cref="FileWriteException">Can throw the dedicated exception that indicates something went wrong with this file writing process.</exception>
         private void WriteFile(List<string> content, string filePath)
         {
             // TODO: Inform youself: How to best handle problems of file writing/reading
@@ -475,16 +541,16 @@ namespace RAPIS_FIMC
                 }
             }
 
-            // DBG: Test write file errors 
-            errorOccured = true;
-            fileWriteException.AddInnerException(new Exception("TesticleException"));
-
-            // TODO: Sometimes the exception is unhandled... why? Related to [x]?
             if (errorOccured)
             {
                 throw fileWriteException;
             }
         }
+        /// <summary>Writes all lines of a string into a file specified by filePath and closes the file.</summary>
+        /// <param name="content">String content that is to be written into the file.</param>
+        /// <param name="filePath">Path and name and extension of the file that should be written.</param>
+        /// <exception cref="FileWriteException">Can throw the dedicated exception that indicates something went wrong with this file writing process.</exception>
+        /// <remarks>Splits the lines of the string at the default system line break and ignores white lines.</remarks>
         private void WriteFile(string content, string filePath)
         {
             // Convert string to lines of content
@@ -492,45 +558,38 @@ namespace RAPIS_FIMC
             List<string> listedContent = new List<string>();
             for (int i = 0; i < splitContent.Length; i++)
             {
-                try
-                {
-                    listedContent.Add(splitContent[i]);
-                }
-                catch (Exception)
-                {
-                    // TODO: Errors, etc.
-                    throw;
-                }
+                if (string.IsNullOrEmpty(splitContent[i]) || string.IsNullOrWhiteSpace(splitContent[i]))
+                    continue;
+
+                listedContent.Add(splitContent[i]);
             }
 
-            // TODO: Should I catch here ? Related to [x]?
-            try
-            {
-                WriteFile(listedContent, filePath);
-            }
-            catch(Exception)
-            {
-
-            }
+            WriteFile(listedContent, filePath);
         }
+        /// <summary>
+        /// <para/>Writes an error log file when something went wrong while writing a file with WriteFile(...).
+        /// <para/>The error log will be saved in the format "[fileName]_error_yyyy-MM-dd_HH-mm-ss.log" in the filePath directory.
+        /// </summary>
+        /// <param name="filePath">Where the file should be saved.</param>
+        /// <remarks>Writes down all inner exceptions of the FileWriteException. When this process also fails, no exception will be thrown but just ignored.</remarks>
         private void WriteErrorLog(FileWriteException exception, string filePath)
         {
-            // Change from written file to [...]_error.log
+            // Change from written file to [...]_error_yyyy-MM-dd_HH-mm-ss.log
+            string fileDateTimeFormat = "yyyy-MM-dd_HH-mm-ss";
             string onlyFilePath = System.IO.Path.GetDirectoryName(filePath); //FileInfo.ExtractFilePath(filePath);
             string onlyFileName = System.IO.Path.GetFileNameWithoutExtension(filePath); //FileInfo.ExtractFileName(filePath);
-            string newFilePath = (onlyFilePath + System.IO.Path.DirectorySeparatorChar + onlyFileName + "_error.log");
+            string newFilePath = (onlyFilePath + System.IO.Path.DirectorySeparatorChar + onlyFileName + "_error_" + DateTime.Now.ToString(fileDateTimeFormat) + ".log");
 
-            // TODO: Create error log content
+            // Create error log content
             StringBuilder sb = new StringBuilder();
             {
-                sb.AppendLine("Error log:");
+                sb.AppendLine(Program.ProgramHeader + " | Error log | " + DateTime.Now.ToString(Program.ICul));
                 sb.AppendLine("The file \"" + filePath + "\" couldn't be written properly.");
-                sb.AppendLine("Below is a list of errors that occured:");
-                sb.AppendLine("");
-                sb.AppendLine("[Start error list]");
+                sb.AppendLine("Below is a list of errors that occured:\n");
+                sb.AppendLine("----------[Start error list]-------------------------");
                 sb.Append(exception.ToString());
-                sb.AppendLine("[End error list]");
-                sb.AppendLine("For more information, visit: \"https:\\\\Sunburst275.jimdofree.com\\\" and/or contact Sunburst275 himself (\"\\Sunburst275.jimdofree.com\\contact\\\")");
+                sb.AppendLine("----------[End error list]---------------------------");
+                sb.AppendLine("\nFor more information, visit: \"https://sunburst275.jimdofree.com/about-1/contact\" and/or contact Sunburst275 directly.");
             }
 
             try
@@ -542,22 +601,22 @@ namespace RAPIS_FIMC
                 // Ignore
             }
         }
+        /// <summary>
+        /// Removes a column span in all the strings of a list of strings. 
+        /// </summary>
+        /// <param name="content">The list of strings where a column span is to be removed.</param>
+        /// <param name="from">From which column of the string the characters should be removed.</param>
+        /// <param name="to">Up to which column of the string the characters should be removed.</param>
+        /// <returns>A list of the same strings but with removed characters inside of the column span.</returns>
+        /// <remarks>
+        /// <para/>When a string is too short for the "to" value, the method will remove everything from the "from" value to the end of the string.
+        /// <para/>When a string is too short for even the "from" value, nothing will be removed.
+        /// <para/>When a string is long enough so that the "to" and the "from" value are inside the lenght of the string, the column span will be removed as specified.
+        /// </remarks>
         private List<string> RemoveColumSpanInContent(List<string> content, int from, int to)
         {
             List<string> contentToEdit = content;
             List<string> editedContent = contentToEdit;
-
-            // DBG: Only to show what was in there before
-            //{
-            //    Console.WriteLine("=================================================");
-            //    Console.Write("Original:\n");
-            //    for (int item = 0; item < contentToEdit.Count; item++)
-            //    {
-            //        Console.WriteLine(contentToEdit[item]);
-            //    }
-            //    Console.WriteLine("- - - - - - - - - - - - - - - - - - - - - - - - - ");
-            //    Console.Write("Edited:\n");
-            //}
 
             // Removing columns in lines according to specified "from" and "to"
             for (int itemIndex = 0; itemIndex < contentToEdit.Count; itemIndex++)
@@ -579,15 +638,18 @@ namespace RAPIS_FIMC
                     // Line is long enough to have char's removed in between "from" and "to".
                     editedContent[itemIndex] = contentToEdit[itemIndex].Remove(from, to - from);
                 }
-
-                // DBG: Only to show the result of the operation
-                //Console.WriteLine(editedContent[itemIndex]);
             }
 
             return editedContent;
         }
         #endregion
         #region Helper
+        /// <summary>
+        /// <para\>Sets the CurrentlyOpenedLabel to the msg. 
+        /// <para\>If the msg is too long, it will be truncated and the continuation of the msg will be indicated by "...".
+        /// </summary>
+        /// <remarks>Is intended to set the msg to the currentyl openend file path. The max limit is determined by "MaxCurrentlyOpenedLabelLength".</remarks>
+        /// <paramref name="msg"/>The msg that should be displayed as the label.
         private void SetCurrentlyOpenedLabel(string msg)
         {
             string text = "Currently opened:    " + msg;
@@ -605,6 +667,7 @@ namespace RAPIS_FIMC
                 CurrentlyOpenedLabel.Text = (msg.Substring(0, MaxCurrentlyOpenedLabelLength - appendix.Length) + appendix);
             }
         }
+        /// <summary>Is intended to be called when the NumericUpDownBoxes changed their value. Calculates the actual values of the columns and checks whether the selection is valid.</summary>
         private void NumericUpDownBoxChanged()
         {
             // TODO: Show cursor position at fromVal
@@ -631,6 +694,8 @@ namespace RAPIS_FIMC
             from = fromVal;
             to = toVal;
         }
+        /// <summary>Calculates the SelectionBounds of each line directly.</summary>
+        /// <remarks>Should be directly called when the program loaded a text file.</remarks>
         private void PreCalcSelectionBounds()
         {
             var content = FileContentBox.Text;
@@ -654,6 +719,10 @@ namespace RAPIS_FIMC
                 start = end + 1;
             }
         }
+        /// <summary>Checks if the selection is valid by checking each line of the loaded file.</summary>
+        /// <param name="from">Column from which on content should be removed.</param>
+        /// <param name="to">Column up to which content should be removed.</param>
+        /// <returns>True when the selection is valid, otherwise false.</returns>
         private bool IsSelectionValid(int from, int to)
         {
             LineBounds preceedingLineBounds = new LineBounds();
@@ -695,9 +764,9 @@ namespace RAPIS_FIMC
                 currentLine = preceedingLineBounds;
             return res;
         }
-        /// <summary>Use this to calculate the actual "from" and "to" values independent from the line and length of the text from the RichTextBox</summary>
-        /// <remarks>Dont use this to change the SpinnerBoxes' values, unless you want to make the code 1000x more complex.</remarks>
-        /// <returns>(realFrom, realTo)</returns>
+        /// <summary>Calculates the actual "from" and "to" values independent from the line and length of the text from the FileContentBox (RichTextBox).</summary>
+        /// <remarks>Dont use this to change the SpinnerBoxes' (NumericUpDown's) values, unless you want to make the code 1000x more complex.</remarks>
+        /// <returns>The actual values of the "from" and "to" values. Meaning: (realFrom, realTo)</returns>
         private Tuple<int, int> CalculateSelectedSection()
         {
             int realFrom, realTo;
@@ -727,6 +796,9 @@ namespace RAPIS_FIMC
             realTo = (to - from) + realFrom;
             return Tuple.Create(realFrom, realTo);
         }
+        /// <summary>Displays the from file read content in the FileContentBox and unlocks the main GUI of the MainForm.</summary>
+        /// <param name="readLines">List of read lines of the file.</param>
+        /// <remarks>Shows error message when the file was empty and sets the text of FileContentBox to "".</remarks>
         private void DisplayFileContentsInTextBox(List<string> readLines)
         {
             if (readLines.Count <= 0 || readLines == null)
@@ -744,12 +816,15 @@ namespace RAPIS_FIMC
                 FileContentBox.Text = "";
             ChangeGuiLockingState(GuiLockingState.Release);
         }
+        /// <summary>Shows the ProcessingDialog</summary>
+        /// <remarks>Is intended to be called when the processing starts and no other ProcessingDialog is opened yet.</remarks>
         private void ShowProcessingDialog()
         {
             pd = new ProcessingDialog();
             pd.ProcessCancellingRequested += OnProcessingDialog_Cancel;
             pd.ShowDialog();
         }
+        /// <summary>Closes down the ProcessingDialog that has been opened by ShowProcessingDialog() when its opened, otherwise nothing happens.</summary>
         private void CloseProcessingDialog()
         {
             if (pd != null)
@@ -759,6 +834,9 @@ namespace RAPIS_FIMC
                 pd = null;
             }
         }
+        /// <summary>Shows a MessageBox that says the file is now being loaded with the filePath/fileName displayed in it.</summary>
+        /// <param name="fileName">The file that will be opened.</param>
+        /// <remarks>Is intended to be called when a file is being loaded. [Is currently unused.]</remarks>
         private void ShowLoadingDialog(string fileName)
         {
             // Building message
@@ -781,6 +859,8 @@ namespace RAPIS_FIMC
             }
             MessageBox.Show(sb.ToString(), "Loading file...", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
+        /// <summary>Locks or unlocks the GUI according to the entered parameter.</summary>
+        /// <remarks>Used e.g. when the processing of the file starts (and ends).</remarks>
         private void ChangeGuiLockingState(GuiLockingState gls)
         {
             // Determine whether GUI components should be enabled or disabled
@@ -809,6 +889,7 @@ namespace RAPIS_FIMC
                 }
             }
         }
+        /// <summary>Shows a MessageBox with a message according to the result of the processing of the file.</summary>
         private void ShowProcessingResult(ProcessingDialogResult processingDialogResult)
         {
             // Show msgbox when "done"
@@ -816,24 +897,26 @@ namespace RAPIS_FIMC
             {
                 case (ProcessingDialogResult.Success):
                     MessageBox.Show("Removal of specified columns is done.\nYou may close the program now\nor continue.",
-                                    Program.ProgramHeader + "Processing done",
+                                    Program.ProgramHeaderWithDash + "Processing done",
                                     MessageBoxButtons.OK,
                                     MessageBoxIcon.Information);
                     break;
                 case (ProcessingDialogResult.Cancelled):
                     MessageBox.Show("Removal of specified columns was cancelled.\nYou may close the program now\nor continue.",
-                        Program.ProgramHeader + "Processing cancelled",
+                        Program.ProgramHeaderWithDash + "Processing cancelled",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Exclamation);
                     break;
                 case (ProcessingDialogResult.Failed):
                     MessageBox.Show("Removal of specified columns failed.\nAn error log should be in the directory you wanted to save your file in. You may close the program now or continue.",
-                        Program.ProgramHeader + "Error",
+                        Program.ProgramHeaderWithDash + "Error",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
                     break;
             }
         }
+        /// <summary>Processes the command line arguments. </summary>
+        /// <remarks>If the command arguments are not as they should be, this method just doesn't do anything.</remarks>
         private void ProcessCmdLineArgs()
         {
             int index = Program.CmdLineArgumentOffset;
@@ -925,7 +1008,7 @@ namespace RAPIS_FIMC
             }
             else
             {
-                MessageBox.Show("Program executed without errors.", Program.ProgramHeader + "Processing done.", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Program executed without errors.", Program.ProgramHeaderWithDash + "Processing done.", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
 
             // Close program
@@ -933,6 +1016,8 @@ namespace RAPIS_FIMC
         }
         #endregion
         #region Helping structures
+        /// <summary>Saves the start, end, content and (in a collection) index of a line/string of a file.</summary>
+        /// <remarks>Start and end are usually relative to the "whole string" of the file content.</remarks>
         public struct LineBounds
         {
             public int index;
@@ -966,6 +1051,5 @@ namespace RAPIS_FIMC
         public enum ProcessingDialogResult { Success, Cancelled, Failed };
         public enum GuiLockingState { Lock, Release }
         #endregion
-
     }
 }

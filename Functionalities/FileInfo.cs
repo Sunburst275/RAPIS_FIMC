@@ -176,9 +176,11 @@ namespace RAPIS_FIMC
         #endregion
     }
 
+    /// <summary>An exception that is thrown when something went wrong during file writing.</summary>
     class FileWriteException : Exception
     {
         #region Members
+        /// <summary>All exceptions that may have been thrown.</summary>
         List<Exception> innerExceptions;
         #endregion
         #region Methods
@@ -208,7 +210,9 @@ namespace RAPIS_FIMC
             innerExceptions.Add(new Exception(message));
         }
     }
-
+    /// <summary>
+    /// An exception that is thrown when something went wrong during file loading. Contains states that describe the exceptions status further.
+    /// </summary>
     class FileReadException : Exception
     {
         #region Helper Structures
